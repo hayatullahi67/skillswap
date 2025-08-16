@@ -90,8 +90,8 @@ export default function ProfilePage() {
       setProfile({
         ...profile,
         name: data.name,
-        location: data.location || null,
-        timezone: data.timezone || null,
+        location: data.location || undefined,
+        timezone: data.timezone || undefined,
       })
       
       setIsEditing(false)

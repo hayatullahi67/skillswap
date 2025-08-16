@@ -216,7 +216,7 @@ export default function AITutorialPage() {
       await simulateTyping(1000)
       addMessage({
         role: 'assistant',
-        content: `Here's what we'll cover in this ${tutorialData.difficulty}-level tutorial:\n\n**${tutorialData.title}**\n\n${tutorialData.description}\n\n⏱️ **Estimated time:** ${tutorialData.estimatedTime}\n📚 **Total steps:** ${tutorialData.totalSteps}\n\nReady to start? Click "Begin Learning" when you're ready!`,
+        content: `Here's what we'll cover in this ${tutorialData.difficulty}-level tutorial:\n\n**${tutorialData.title}**\n\n${tutorialData.description}\n\n⏱️ **Estimated time:** ${tutorialData.estimatedTime}\n📚 **Total steps:** ${tutorialData.totalSteps}\n\nReady to start? Type "Begin Learning" when you're ready!`,
         type: 'intro'
       })
 

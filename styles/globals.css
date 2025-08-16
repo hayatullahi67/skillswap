@@ -66,6 +66,33 @@
   }
 }
 
+/* Incoming call modal - ensure it appears above everything */
+.incoming-call-modal {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  z-index: 9999 !important;
+  background: rgba(0, 0, 0, 0.5) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* Mobile-specific fixes for incoming calls */
+@media (max-width: 768px) {
+  .incoming-call-modal {
+    padding: 1rem !important;
+  }
+  
+  .incoming-call-card {
+    width: 100% !important;
+    max-width: 400px !important;
+    margin: 0 auto !important;
+  }
+}
+
 /* Video call styles */
 .video-container {
   position: relative;

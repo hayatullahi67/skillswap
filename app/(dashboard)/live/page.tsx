@@ -10,7 +10,6 @@ import { useAppStore } from '@/lib/store'
 import { supabase } from '@/lib/supabaseClient'
 import { Video, VideoOff, Mic, MicOff, Phone, PhoneOff, PhoneIncoming, UserCheck, Search, Users } from 'lucide-react'
 import { peerClient } from '@/lib/peerClient'
-import { IncomingCallOverlay } from '@/components/ui/incoming-call-overlay'
 
 type MatchedPeer = {
   id: string
@@ -48,13 +47,47 @@ export default function LivePage() {
   const { user, userSkills } = useAppStore()
   const { modalState, showError, showWarning, showInfo, closeModal } = useModal()
 
-  // Set up real-time subscriptions for incoming calls
+  // Check for active accepted sessions when page loads (incoming calls handled globally)
   useEffect(() => {
     if (!user) return
 
-    console.log('🔔 Setting up real-time subscriptions for user:', user.id)
-    console.log('📱 User agent:', navigator.userAgent)
-    console.log('📱 Screen size:', window.innerWidth, 'x', window.innerHeight)
+    console.log('🔔 Checking for active sessions on live page load')
+
+    const checkForActiveSession = async () => {
+      try {
+        // Check if there's an accepted session for this user
+        const { data: activeSessions, error } = await supabase
+          .from('sessions')
+          .select('*')
+          .or(`host_id.eq.${user.id},learner_id.eq.${user.id}`)
+          .eq('status', 'accepted')
+          .order('created_at', { ascending: false })
+          .limit(1)
+
+        if (error) {
+          console.error('Error checking active sessions:', error)
+          return
+        }
+
+        if (activeSessions && activeSessions.length > 0) {
+          const session = activeSessions[0]
+          console.log('📞 Found active session, starting video call:', session)
+
+          setCurrentSession(session)
+          setCallState('connected')
+
+          // Start video call immediately
+          await startVideoCall(session.id.toString())
+        }
+      } catch (error) {
+        console.error('Error checking active sessions:', error)
+      }
+    }
+
+    checkForActiveSession()
+
+    // Set up real-time subscriptions for session updates only
+    console.log('🔔 Setting up session update subscriptions for user:', user.id)
 
     // Manual check for existing pending sessions (in case real-time missed them)
     const checkForPendingSessions = async () => {
@@ -647,8 +680,8 @@ export default function LivePage() {
     try {
       console.log('🎥 Starting video call for session:', sessionId)
 
-      // Generate unique peer ID for this session
-      const myPeerId = `${user?.id}-${sessionId}-${Date.now()}`
+      // Generate consistent peer ID for this session (same for both users)
+      const myPeerId = `${user?.id}-session-${sessionId}`
 
       // Initialize PeerJS connection
       await peerClient.initialize(myPeerId)
@@ -657,11 +690,12 @@ export default function LivePage() {
       // Get local media stream (video + audio)
       const stream = await peerClient.getLocalStream()
       setLocalStream(stream)
-      console.log('✅ Got local media stream')
+      console.log('✅ Got local media stream with tracks:', stream.getTracks().map(t => `${t.kind}: ${t.label}`))
 
       // Set local video
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream
+        localVideoRef.current.muted = true // Prevent echo
       }
 
       // Set up incoming call handler for remote stream
@@ -670,29 +704,48 @@ export default function LivePage() {
         setRemoteStream(remoteStream)
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = remoteStream
+          remoteVideoRef.current.muted = false // Allow remote audio
         }
       })
 
       // If this is the learner (caller), initiate call to teacher
       if (currentSession && currentSession.learner_id === user?.id) {
-        // Wait a bit for teacher to be ready, then call them
+        // Wait for teacher to be ready, then call them
         setTimeout(async () => {
           try {
-            const teacherPeerId = `${currentSession.host_id}-${sessionId}-${Date.now()}`
+            const teacherPeerId = `${currentSession.host_id}-session-${sessionId}`
             console.log('📞 Calling teacher with ID:', teacherPeerId)
 
             const remoteStream = await peerClient.initiateCallToPeer(teacherPeerId)
             setRemoteStream(remoteStream)
             if (remoteVideoRef.current) {
               remoteVideoRef.current.srcObject = remoteStream
+              remoteVideoRef.current.muted = false // Allow remote audio
             }
             console.log('✅ Connected to teacher!')
 
           } catch (callError) {
             console.error('Failed to connect to teacher:', callError)
-            showWarning('Connection Issue', 'Could not establish video connection, but audio may still work.')
+            showWarning('Connection Issue', 'Could not establish video connection. Retrying...')
+
+            // Retry connection after a delay
+            setTimeout(async () => {
+              try {
+                const teacherPeerId = `${currentSession.host_id}-session-${sessionId}`
+                const remoteStream = await peerClient.initiateCallToPeer(teacherPeerId)
+                setRemoteStream(remoteStream)
+                if (remoteVideoRef.current) {
+                  remoteVideoRef.current.srcObject = remoteStream
+                  remoteVideoRef.current.muted = false
+                }
+                showInfo('Connected!', 'Video connection established')
+              } catch (retryError) {
+                console.error('Retry failed:', retryError)
+                showError('Connection Failed', 'Unable to establish video connection. Please try again.')
+              }
+            }, 3000)
           }
-        }, 2000)
+        }, 3000) // Increased wait time
       }
 
     } catch (error) {
@@ -740,22 +793,7 @@ export default function LivePage() {
     }
   }
 
-  // Render incoming call overlay if there's an incoming call
-  const renderIncomingCallOverlay = () => {
-    console.log('🔔 renderIncomingCallOverlay called - callState:', callState, 'incomingCall:', incomingCall)
-    if (callState === 'incoming' && incomingCall) {
-      console.log('🔔 Rendering IncomingCallOverlay component')
-      return (
-        <IncomingCallOverlay
-          learnerName={incomingCall.learnerName}
-          skillName={incomingCall.skillName}
-          onAccept={acceptCall}
-          onReject={rejectCall}
-        />
-      )
-    }
-    return null
-  }
+  // Incoming calls are now handled globally by CallProvider
 
   // Video call interface - Mobile optimized
   if (callState === 'connected') {
@@ -829,236 +867,231 @@ export default function LivePage() {
   }
 
   return (
-    <>
-      {/* Incoming call overlay - renders on top of everything */}
-      {renderIncomingCallOverlay()}
-
-      <div className="p-6 max-w-2xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold mb-2">Live SkillSwap</h1>
-          <p className="text-muted-foreground">
-            Connect with peers for real-time learning sessions
-          </p>
-        </div>
-
-
-
-        {/* Idle state */}
-        {callState === 'idle' && (
-          <Card>
-            <CardHeader className="text-center">
-              <CardTitle>Ready to Learn?</CardTitle>
-              <CardDescription>
-                We'll match you with someone who can teach the skills you want to learn
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="text-center space-y-4">
-              <Button onClick={startLearningForm} size="lg" className="w-full">
-                Find a Learning Partner
-              </Button>
-
-              {/* Debug button for testing incoming calls */}
-              {process.env.NODE_ENV === 'development' && (
-                <Button
-                  onClick={() => {
-                    setIncomingCall({
-                      sessionId: 999,
-                      learnerName: 'Test User',
-                      skillName: 'React Development',
-                      learnerId: 'test-id'
-                    })
-                    setCallState('incoming')
-                  }}
-                  variant="outline"
-                  size="sm"
-                  className="w-full mt-2"
-                >
-                  🧪 Test Incoming Call (Dev Only)
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Learning form state */}
-        {callState === 'form' && (
-          <Card>
-            <CardHeader className="text-center">
-              <CardTitle>What do you want to learn?</CardTitle>
-              <CardDescription>
-                Enter a skill you'd like to learn and we'll find available teachers
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <input
-                  type="text"
-                  placeholder="e.g. React, Python, Guitar, Spanish..."
-                  value={skillToLearn}
-                  onChange={(e) => setSkillToLearn(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  onKeyPress={(e) => e.key === 'Enter' && findPeersForSkill()}
-                />
-              </div>
-
-              {availableSkills.length > 0 && (
-                <div>
-                  <p className="text-sm text-muted-foreground mb-2">Popular skills:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {availableSkills.slice(0, 8).map((skill) => (
-                      <button
-                        key={skill}
-                        onClick={() => setSkillToLearn(skill)}
-                        className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
-                      >
-                        {skill}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="flex space-x-3 pt-4">
-                <Button onClick={() => setCallState('idle')} variant="outline" className="flex-1">
-                  Back
-                </Button>
-                <Button onClick={findPeersForSkill} className="flex-1">
-                  <Search className="h-4 w-4 mr-2" />
-                  Find Learning Partner
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Matched peers state */}
-        {callState === 'matched' && (
-          <Card>
-            <CardHeader className="text-center">
-              <CardTitle>Available Teachers</CardTitle>
-              <CardDescription>
-                Found {matchedPeers.length} teacher{matchedPeers.length !== 1 ? 's' : ''} for "{skillToLearn}"
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {matchedPeers.map((peer) => (
-                <div
-                  key={peer.id}
-                  className={`p-4 border rounded-lg cursor-pointer transition-all ${selectedPeer?.id === peer.id
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  onClick={() => selectPeer(peer)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-semibold">{peer.name}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Can teach: {peer.skill_name}
-                      </p>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <div className={`w-3 h-3 rounded-full ${peer.isOnline ? 'bg-green-500' : 'bg-gray-400'
-                        }`}></div>
-                      <span className={`text-sm ${peer.isOnline ? 'text-green-600' : 'text-gray-500'
-                        }`}>
-                        {peer.isOnline ? 'Online' : 'Offline'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-              <div className="flex space-x-3 pt-4">
-                <Button onClick={() => setCallState('form')} variant="outline" className="flex-1">
-                  Back
-                </Button>
-                <Button
-                  onClick={startSession}
-                  disabled={!selectedPeer}
-                  className="flex-1"
-                >
-                  <Users className="h-4 w-4 mr-2" />
-                  Start Session
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Searching state */}
-        {callState === 'searching' && (
-          <Card>
-            <CardContent className="text-center py-12">
-              <div className="animate-pulse mb-4">
-                <div className="w-16 h-16 bg-primary rounded-full mx-auto mb-4"></div>
-              </div>
-              <h3 className="text-lg font-semibold mb-2">Searching for available teachers...</h3>
-              <p className="text-muted-foreground">
-                This may take a moment while we find the perfect match
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Calling state */}
-        {callState === 'calling' && matchedPeer && (
-          <Card className="border-blue-200 bg-blue-50">
-            <CardContent className="text-center py-12">
-              <div className="animate-pulse mb-4">
-                <PhoneIncoming className="w-16 h-16 text-blue-600 mx-auto mb-4" />
-              </div>
-              <h3 className="text-lg font-semibold mb-2 text-blue-800">
-                Calling {matchedPeer.name}...
-              </h3>
-              <p className="text-blue-600 mb-4">
-                Requesting to learn: {matchedPeer.skill_name}
-              </p>
-              <p className="text-sm text-blue-500 mb-6">
-                Waiting for them to accept your call
-              </p>
-
-              <Button
-                onClick={cancelCall}
-                variant="outline"
-                className="border-red-300 text-red-600 hover:bg-red-50"
-              >
-                <PhoneOff className="h-4 w-4 mr-2" />
-                Cancel Call
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Call ended state */}
-        {callState === 'ended' && (
-          <Card>
-            <CardHeader className="text-center">
-              <CardTitle>Session Ended</CardTitle>
-              <CardDescription>
-                Your learning session has ended
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="text-center">
-              <Button onClick={() => setCallState('idle')} size="lg">
-                Start New Session
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Modal */}
-        <AlertModal
-          isOpen={modalState.isOpen}
-          onClose={closeModal}
-          title={modalState.title}
-          message={modalState.message}
-          type={modalState.type}
-          onConfirm={modalState.onConfirm}
-          confirmText={modalState.confirmText}
-          cancelText={modalState.cancelText}
-        />
+    <div className="p-6 max-w-2xl mx-auto">
+      <div className="text-center mb-8">
+        <h1 className="text-3xl font-bold mb-2">Live SkillSwap</h1>
+        <p className="text-muted-foreground">
+          Connect with peers for real-time learning sessions
+        </p>
       </div>
-    </>
+
+
+
+      {/* Idle state */}
+      {callState === 'idle' && (
+        <Card>
+          <CardHeader className="text-center">
+            <CardTitle>Ready to Learn?</CardTitle>
+            <CardDescription>
+              We'll match you with someone who can teach the skills you want to learn
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-center space-y-4">
+            <Button onClick={startLearningForm} size="lg" className="w-full">
+              Find a Learning Partner
+            </Button>
+
+            {/* Debug button for testing incoming calls */}
+            {process.env.NODE_ENV === 'development' && (
+              <Button
+                onClick={() => {
+                  setIncomingCall({
+                    sessionId: 999,
+                    learnerName: 'Test User',
+                    skillName: 'React Development',
+                    learnerId: 'test-id'
+                  })
+                  setCallState('incoming')
+                }}
+                variant="outline"
+                size="sm"
+                className="w-full mt-2"
+              >
+                🧪 Test Incoming Call (Dev Only)
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Learning form state */}
+      {callState === 'form' && (
+        <Card>
+          <CardHeader className="text-center">
+            <CardTitle>What do you want to learn?</CardTitle>
+            <CardDescription>
+              Enter a skill you'd like to learn and we'll find available teachers
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <input
+                type="text"
+                placeholder="e.g. React, Python, Guitar, Spanish..."
+                value={skillToLearn}
+                onChange={(e) => setSkillToLearn(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                onKeyPress={(e) => e.key === 'Enter' && findPeersForSkill()}
+              />
+            </div>
+
+            {availableSkills.length > 0 && (
+              <div>
+                <p className="text-sm text-muted-foreground mb-2">Popular skills:</p>
+                <div className="flex flex-wrap gap-2">
+                  {availableSkills.slice(0, 8).map((skill) => (
+                    <button
+                      key={skill}
+                      onClick={() => setSkillToLearn(skill)}
+                      className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
+                    >
+                      {skill}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex space-x-3 pt-4">
+              <Button onClick={() => setCallState('idle')} variant="outline" className="flex-1">
+                Back
+              </Button>
+              <Button onClick={findPeersForSkill} className="flex-1">
+                <Search className="h-4 w-4 mr-2" />
+                Find Learning Partner
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Matched peers state */}
+      {callState === 'matched' && (
+        <Card>
+          <CardHeader className="text-center">
+            <CardTitle>Available Teachers</CardTitle>
+            <CardDescription>
+              Found {matchedPeers.length} teacher{matchedPeers.length !== 1 ? 's' : ''} for "{skillToLearn}"
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {matchedPeers.map((peer) => (
+              <div
+                key={peer.id}
+                className={`p-4 border rounded-lg cursor-pointer transition-all ${selectedPeer?.id === peer.id
+                  ? 'border-blue-500 bg-blue-50'
+                  : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                onClick={() => selectPeer(peer)}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold">{peer.name}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Can teach: {peer.skill_name}
+                    </p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-3 h-3 rounded-full ${peer.isOnline ? 'bg-green-500' : 'bg-gray-400'
+                      }`}></div>
+                    <span className={`text-sm ${peer.isOnline ? 'text-green-600' : 'text-gray-500'
+                      }`}>
+                      {peer.isOnline ? 'Online' : 'Offline'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            <div className="flex space-x-3 pt-4">
+              <Button onClick={() => setCallState('form')} variant="outline" className="flex-1">
+                Back
+              </Button>
+              <Button
+                onClick={startSession}
+                disabled={!selectedPeer}
+                className="flex-1"
+              >
+                <Users className="h-4 w-4 mr-2" />
+                Start Session
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Searching state */}
+      {callState === 'searching' && (
+        <Card>
+          <CardContent className="text-center py-12">
+            <div className="animate-pulse mb-4">
+              <div className="w-16 h-16 bg-primary rounded-full mx-auto mb-4"></div>
+            </div>
+            <h3 className="text-lg font-semibold mb-2">Searching for available teachers...</h3>
+            <p className="text-muted-foreground">
+              This may take a moment while we find the perfect match
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Calling state */}
+      {callState === 'calling' && matchedPeer && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="text-center py-12">
+            <div className="animate-pulse mb-4">
+              <PhoneIncoming className="w-16 h-16 text-blue-600 mx-auto mb-4" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2 text-blue-800">
+              Calling {matchedPeer.name}...
+            </h3>
+            <p className="text-blue-600 mb-4">
+              Requesting to learn: {matchedPeer.skill_name}
+            </p>
+            <p className="text-sm text-blue-500 mb-6">
+              Waiting for them to accept your call
+            </p>
+
+            <Button
+              onClick={cancelCall}
+              variant="outline"
+              className="border-red-300 text-red-600 hover:bg-red-50"
+            >
+              <PhoneOff className="h-4 w-4 mr-2" />
+              Cancel Call
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Call ended state */}
+      {callState === 'ended' && (
+        <Card>
+          <CardHeader className="text-center">
+            <CardTitle>Session Ended</CardTitle>
+            <CardDescription>
+              Your learning session has ended
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-center">
+            <Button onClick={() => setCallState('idle')} size="lg">
+              Start New Session
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Modal */}
+      <AlertModal
+        isOpen={modalState.isOpen}
+        onClose={closeModal}
+        title={modalState.title}
+        message={modalState.message}
+        type={modalState.type}
+        onConfirm={modalState.onConfirm}
+        confirmText={modalState.confirmText}
+        cancelText={modalState.cancelText}
+      />
+    </div>
   )
 }

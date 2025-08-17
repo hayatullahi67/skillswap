@@ -59,23 +59,37 @@ export class PeerClient {
 
   async getLocalStream() {
     try {
-      // Try to get both video and audio
+      // Try to get both video and audio with better constraints
       this.localStream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30 }
+        },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 44100
+        }
       })
-      console.log('Got video and audio stream')
+      console.log('Got video and audio stream with enhanced audio settings')
       return this.localStream
     } catch (error) {
       console.error('Failed to get video/audio stream:', error)
       
       try {
-        // Fallback: try audio only
+        // Fallback: try audio only with enhanced settings
         this.localStream = await navigator.mediaDevices.getUserMedia({
           video: false,
-          audio: true
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            sampleRate: 44100
+          }
         })
-        console.log('Got audio-only stream')
+        console.log('Got audio-only stream with enhanced settings')
         return this.localStream
       } catch (audioError) {
         console.error('Failed to get audio stream:', audioError)
@@ -106,16 +120,26 @@ export class PeerClient {
     if (!this.peer) return
 
     this.peer.on('call', (call) => {
+      console.log('📞 Incoming peer call received')
       if (this.localStream) {
+        console.log('📞 Answering call with local stream')
         call.answer(this.localStream)
         
         call.on('stream', (remoteStream) => {
+          console.log('📞 Received remote stream in incoming call')
+          // Ensure audio tracks are enabled
+          remoteStream.getAudioTracks().forEach(track => {
+            track.enabled = true
+            console.log('🔊 Audio track enabled:', track.label)
+          })
           callback(remoteStream)
         })
 
         call.on('error', (error) => {
           console.error('Call error:', error)
         })
+      } else {
+        console.error('❌ No local stream available to answer call')
       }
     })
   }
@@ -125,11 +149,22 @@ export class PeerClient {
       throw new Error('Peer not initialized or no local stream')
     }
 
+    console.log('📞 Initiating call to peer:', remotePeerId)
+    console.log('📞 Local stream tracks:', this.localStream.getTracks().map(t => `${t.kind}: ${t.label}`))
+
     return new Promise((resolve, reject) => {
       const call = this.peer!.call(remotePeerId, this.localStream!)
       
       call.on('stream', (remoteStream) => {
-        console.log('Received remote stream from peer')
+        console.log('📞 Received remote stream from peer')
+        console.log('📞 Remote stream tracks:', remoteStream.getTracks().map(t => `${t.kind}: ${t.label}`))
+        
+        // Ensure audio tracks are enabled
+        remoteStream.getAudioTracks().forEach(track => {
+          track.enabled = true
+          console.log('🔊 Remote audio track enabled:', track.label)
+        })
+        
         resolve(remoteStream)
       })
 

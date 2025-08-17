@@ -1,10 +1,14 @@
+'use client'
+
 import { useState } from 'react'
 
-interface ModalState {
+export type ModalType = 'info' | 'warning' | 'error' | 'confirm'
+
+export interface ModalState {
   isOpen: boolean
   title: string
   message: string
-  type: 'success' | 'error' | 'warning' | 'info'
+  type: ModalType
   onConfirm?: () => void
   confirmText?: string
   cancelText?: string
@@ -21,36 +25,32 @@ export function useModal() {
   const showModal = (
     title: string,
     message: string,
-    type: 'success' | 'error' | 'warning' | 'info' = 'info',
-    options?: {
-      onConfirm?: () => void
-      confirmText?: string
-      cancelText?: string
-    }
+    type: ModalType = 'info',
+    onConfirm?: () => void,
+    confirmText?: string,
+    cancelText?: string
   ) => {
     setModalState({
       isOpen: true,
       title,
       message,
       type,
-      ...options
+      onConfirm,
+      confirmText,
+      cancelText
     })
   }
 
-  const showSuccess = (title: string, message: string) => {
-    showModal(title, message, 'success')
-  }
-
-  const showError = (title: string, message: string) => {
-    showModal(title, message, 'error')
+  const showInfo = (title: string, message: string) => {
+    showModal(title, message, 'info')
   }
 
   const showWarning = (title: string, message: string) => {
     showModal(title, message, 'warning')
   }
 
-  const showInfo = (title: string, message: string) => {
-    showModal(title, message, 'info')
+  const showError = (title: string, message: string) => {
+    showModal(title, message, 'error')
   }
 
   const showConfirm = (
@@ -60,11 +60,7 @@ export function useModal() {
     confirmText: string = 'Confirm',
     cancelText: string = 'Cancel'
   ) => {
-    showModal(title, message, 'warning', {
-      onConfirm,
-      confirmText,
-      cancelText
-    })
+    showModal(title, message, 'confirm', onConfirm, confirmText, cancelText)
   }
 
   const closeModal = () => {
@@ -74,10 +70,9 @@ export function useModal() {
   return {
     modalState,
     showModal,
-    showSuccess,
-    showError,
-    showWarning,
     showInfo,
+    showWarning,
+    showError,
     showConfirm,
     closeModal
   }

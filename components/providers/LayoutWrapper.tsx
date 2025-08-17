@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation'
 import { Sidebar } from '@/components/organisms/Sidebar'
 import { AuthGuard } from '@/components/providers/AuthGuard'
+import { CallProvider } from '@/components/providers/CallProvider'
 
 export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -24,10 +25,12 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen bg-background">
       <AuthGuard>
-        <Sidebar />
-        <main className="flex-1 overflow-auto">
-          {children}
-        </main>
+        <CallProvider>
+          <Sidebar />
+          <main className="flex-1 overflow-auto">
+            {children}
+          </main>
+        </CallProvider>
       </AuthGuard>
     </div>
   )

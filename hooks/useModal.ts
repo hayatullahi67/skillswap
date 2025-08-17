@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 
-export type ModalType = 'info' | 'warning' | 'error' | 'confirm'
+export type ModalType = 'info' | 'warning' | 'error' | 'success' | 'confirm'
 
 export interface ModalState {
   isOpen: boolean
@@ -53,6 +53,10 @@ export function useModal() {
     showModal(title, message, 'error')
   }
 
+  const showSuccess = (title: string, message: string) => {
+    showModal(title, message, 'success')
+  }
+
   const showConfirm = (
     title: string,
     message: string,
@@ -73,6 +77,7 @@ export function useModal() {
     showInfo,
     showWarning,
     showError,
+    showSuccess,
     showConfirm,
     closeModal
   }

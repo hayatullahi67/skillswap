@@ -418,7 +418,8 @@ export default function ProfilePage() {
         onClose={closeModal}
         title={modalState.title}
         message={modalState.message}
-        type={modalState.type}
+        type={['success', 'error', 'warning', 'info'].includes(modalState.type as string) ? modalState.type as 'success' | 'error' | 'warning' | 'info' : undefined}
+        // type={modalState.type}
         onConfirm={modalState.onConfirm}
         confirmText={modalState.confirmText}
         cancelText={modalState.cancelText}

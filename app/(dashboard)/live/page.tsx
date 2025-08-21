@@ -70,14 +70,23 @@ export default function LivePage() {
         }
 
         if (activeSessions && activeSessions.length > 0) {
-          const session = activeSessions[0]
+          // const session = activeSessions[0]
+          // console.log('📞 Found active session, starting video call:', session)
+
+          // setCurrentSession(session)
+          // setCallState('connected')
+
+          // // Start video call immediately
+          // await startVideoCall(session.id.toString())
+          const session = activeSessions[0];
           console.log('📞 Found active session, starting video call:', session)
 
-          setCurrentSession(session)
-          setCallState('connected')
-
-          // Start video call immediately
-          await startVideoCall(session.id.toString())
+          setCurrentSession(session);
+          setCallState('connected');
+          await startVideoCall({
+            session,
+            role: session.learner_id === user?.id ? 'caller' : 'callee'
+          });
         }
       } catch (error) {
         console.error('Error checking active sessions:', error)
@@ -197,7 +206,7 @@ export default function LivePage() {
       })
 
     // Subscribe to session status updates (for callers waiting for response)
-    const sessionUpdatesChannel = supabase
+    const sessionUpdatesChannel =  supabase
       .channel(`session-updates-${user.id}`)
       .on('postgres_changes', {
         event: 'UPDATE',
@@ -210,15 +219,22 @@ export default function LivePage() {
         const session = payload.new
 
         if (session.status === 'accepted') {
-          console.log('✅ Call accepted!')
-          setCallState('connected')
-          setCurrentSession(session)
+          // console.log('✅ Call accepted!')
+          // setCallState('connected')
+          // setCurrentSession(session)
 
-          // Start video call for learner
-          startVideoCall(session.id.toString())
+          // // Start video call for learner
+          // startVideoCall(session.id.toString())
 
-          showInfo('Call Accepted!', 'Starting video session...')
-
+          // showInfo('Call Accepted!', 'Starting video session...')
+        
+          setCallState('connected');
+          setCurrentSession(session);
+          // await 
+          startVideoCall({
+            session,
+            role: session.learner_id === user?.id ? 'caller' : 'callee'
+          });
         } else if (session.status === 'rejected') {
           console.log('❌ Call rejected')
           setCallState('ended')
@@ -503,13 +519,32 @@ export default function LivePage() {
     }
   }
 
+
+  // --- Accept Call: Make sure peer and local stream are ready before accepting ---
   const acceptCall = async () => {
-    if (!incomingCall) return
+    if (!incomingCall) return;
 
     try {
-      console.log('✅ Accepting call from:', incomingCall.learnerName)
+      const myPeerId = `${user?.id}-session-${incomingCall.sessionId}`;
+      const stream = await peerClient.getLocalStream();
+      await peerClient.initialize(myPeerId);
 
-      // Step 1: Update session status to accepted
+      // Set up incoming call handler
+      peerClient.onIncomingCall((remoteStream: MediaStream) => {
+        setRemoteStream(remoteStream);
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = remoteStream;
+          remoteVideoRef.current.muted = false;
+        }
+      });
+
+      setLocalStream(stream);
+      if (localVideoRef.current && stream) {
+        localVideoRef.current.srcObject = stream;
+        localVideoRef.current.muted = true;
+      }
+
+      // Now update session status to accepted
       const { data: updatedSession, error } = await supabase
         .from('sessions')
         .update({
@@ -517,243 +552,102 @@ export default function LivePage() {
           started_at: new Date().toISOString()
         })
         .eq('id', incomingCall.sessionId)
-        .eq('status', 'pending') // Only update if still pending
+        .eq('status', 'pending')
         .select()
-        .single()
+        .single();
 
-      if (error) {
-        console.error('Error accepting call:', error)
-        throw error
-      }
-
+      if (error) throw error;
       if (!updatedSession) {
-        showWarning('Call Expired', 'This call has already been handled.')
-        setIncomingCall(null)
-        setCallState('idle')
-        return
+        setIncomingCall(null);
+        setCallState('idle');
+        return;
       }
 
-      console.log('✅ Call accepted successfully')
-
-      // Step 2: Update UI state
-      setIncomingCall(null)
-      setCallState('connected')
-      setCurrentSession(updatedSession)
-
-      // Step 3: Start video call
-      await startVideoCall(updatedSession.id.toString())
-
-      showInfo('Call Accepted!', 'Video session started!')
-
+   
+      setIncomingCall(null);
+      setCallState('connected');
+      setCurrentSession(updatedSession);
+      await startVideoCall({ session: updatedSession, role: 'callee' });
     } catch (error) {
-      console.error('Error accepting call:', error)
-      showError('Accept Failed', 'Failed to accept call. Please try again.')
+      showError('Accept Failed', 'Failed to accept call. Please try again.');
     }
-  }
+  };
 
-  const rejectCall = async () => {
-    if (!incomingCall) return
+  // --- Start Video Call: Always get local stream and initialize peer before calling ---
+ 
 
+  type StartVideoArgs = {
+    session: any;
+    role: 'caller' | 'callee'; // caller = learner, callee = teacher
+  };
+  
+  const startVideoCall = async ({ session, role }: StartVideoArgs) => {
     try {
-      console.log('❌ Rejecting call from:', incomingCall.learnerName)
-
-      // Step 1: Update session status to rejected
-      const { error } = await supabase
-        .from('sessions')
-        .update({
-          status: 'rejected',
-          ended_at: new Date().toISOString()
-        })
-        .eq('id', incomingCall.sessionId)
-        .eq('status', 'pending') // Only update if still pending
-
-      if (error) {
-        console.error('Error rejecting call:', error)
-        throw error
+      const myPeerId = `${user?.id}-session-${session.id}`;
+      const remotePeerId =
+        role === 'caller'
+          ? `${session.host_id}-session-${session.id}`
+          : `${session.learner_id}-session-${session.id}`;
+  
+      const stream = await peerClient.getLocalStream();
+      if (!stream) {
+        showError('Media Error', 'Could not access camera or microphone. Please enable permissions.');
+        return;
       }
-
-      console.log('✅ Call rejected successfully')
-
-      // Step 2: Update UI state
-      setIncomingCall(null)
-      setCallState('idle')
-
-      showInfo('Call Rejected', 'You declined the call.')
-
-    } catch (error) {
-      console.error('Error rejecting call:', error)
-      showError('Reject Failed', 'Failed to reject call.')
-
-      // Reset state anyway
-      setIncomingCall(null)
-      setCallState('idle')
-    }
-  }
-
-  const endCall = async () => {
-    try {
-      console.log('📞 Ending call...')
-
-      // Step 1: Update session status to ended
-      if (currentSession) {
-        const { error } = await supabase
-          .from('sessions')
-          .update({
-            status: 'ended',
-            ended_at: new Date().toISOString()
-          })
-          .eq('id', currentSession.id)
-
-        if (error) {
-          console.error('Error ending call:', error)
-        } else {
-          console.log('✅ Call ended successfully')
-        }
-      }
-
-      // Step 2: Disconnect PeerJS and clean up streams
-      peerClient.disconnect()
-
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop())
-        setLocalStream(null)
-      }
-
-      if (remoteStream) {
-        setRemoteStream(null)
-      }
-
-      // Step 3: Reset all state
-      setCallState('idle')
-      setCurrentSession(null)
-      setMatchedPeer(null)
-      setIncomingCall(null)
-
-      showInfo('Call Ended', 'The session has ended.')
-
-    } catch (error) {
-      console.error('Error ending call:', error)
-
-      // Reset state anyway
-      setCallState('idle')
-      setCurrentSession(null)
-      setMatchedPeer(null)
-      setIncomingCall(null)
-    }
-  }
-
-  const toggleVideo = () => {
-    if (localStream) {
-      const videoTrack = localStream.getVideoTracks()[0]
-      if (videoTrack) {
-        videoTrack.enabled = !videoTrack.enabled
-        setVideoEnabled(videoTrack.enabled)
-
-        // Show feedback to user
-        if (videoTrack.enabled) {
-          showInfo('Video On', 'Your camera is now enabled')
-        } else {
-          showInfo('Video Off', 'Your camera is now disabled')
-        }
-      }
-    }
-  }
-
-  const toggleAudio = () => {
-    if (localStream) {
-      const audioTrack = localStream.getAudioTracks()[0]
-      if (audioTrack) {
-        audioTrack.enabled = !audioTrack.enabled
-        setAudioEnabled(audioTrack.enabled)
-
-        // Show feedback to user
-        if (audioTrack.enabled) {
-          showInfo('Mic On', 'Your microphone is now enabled')
-        } else {
-          showInfo('Mic Off', 'Your microphone is now muted')
-        }
-      }
-    }
-  }
-
-  const startVideoCall = async (sessionId: string) => {
-    try {
-      console.log('🎥 Starting video call for session:', sessionId)
-
-      // Generate consistent peer ID for this session (same for both users)
-      const myPeerId = `${user?.id}-session-${sessionId}`
-
-      // Initialize PeerJS connection
-      await peerClient.initialize(myPeerId)
-      console.log('✅ PeerJS initialized with ID:', myPeerId)
-
-      // Get local media stream (video + audio)
-      const stream = await peerClient.getLocalStream()
-      setLocalStream(stream)
-      console.log('✅ Got local media stream with tracks:', stream.getTracks().map(t => `${t.kind}: ${t.label}`))
-
-      // Set local video
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream
-        localVideoRef.current.muted = true // Prevent echo
-      }
-
-      // Set up incoming call handler for remote stream
-      peerClient.onIncomingCall((remoteStream) => {
-        console.log('📹 Received remote video stream')
-        setRemoteStream(remoteStream)
+  
+      await peerClient.initialize(myPeerId);
+  
+      // handle incoming stream (works for both roles)
+      peerClient.onIncomingCall((remoteStream: MediaStream) => {
+        setRemoteStream(remoteStream);
         if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = remoteStream
-          remoteVideoRef.current.muted = false // Allow remote audio
+          remoteVideoRef.current.srcObject = remoteStream;
+          remoteVideoRef.current.muted = false;
+          // handle autoplay policies
+          remoteVideoRef.current.play?.().catch(() => {});
         }
-      })
-
-      // If this is the learner (caller), initiate call to teacher
-      if (currentSession && currentSession.learner_id === user?.id) {
-        // Wait for teacher to be ready, then call them
-        setTimeout(async () => {
-          try {
-            const teacherPeerId = `${currentSession.host_id}-session-${sessionId}`
-            console.log('📞 Calling teacher with ID:', teacherPeerId)
-
-            const remoteStream = await peerClient.initiateCallToPeer(teacherPeerId)
-            setRemoteStream(remoteStream)
-            if (remoteVideoRef.current) {
-              remoteVideoRef.current.srcObject = remoteStream
-              remoteVideoRef.current.muted = false // Allow remote audio
-            }
-            console.log('✅ Connected to teacher!')
-
-          } catch (callError) {
-            console.error('Failed to connect to teacher:', callError)
-            showWarning('Connection Issue', 'Could not establish video connection. Retrying...')
-
-            // Retry connection after a delay
-            setTimeout(async () => {
-              try {
-                const teacherPeerId = `${currentSession.host_id}-session-${sessionId}`
-                const remoteStream = await peerClient.initiateCallToPeer(teacherPeerId)
-                setRemoteStream(remoteStream)
-                if (remoteVideoRef.current) {
-                  remoteVideoRef.current.srcObject = remoteStream
-                  remoteVideoRef.current.muted = false
-                }
-                showInfo('Connected!', 'Video connection established')
-              } catch (retryError) {
-                console.error('Retry failed:', retryError)
-                showError('Connection Failed', 'Unable to establish video connection. Please try again.')
-              }
-            }, 3000)
-          }
-        }, 3000) // Increased wait time
+      });
+  
+      setLocalStream(stream);
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+        localVideoRef.current.muted = true;
+        localVideoRef.current.play?.().catch(() => {});
       }
-
-    } catch (error) {
-      console.error('Error starting video call:', error)
-      showError('Video Error', 'Failed to start video call. Please check camera/microphone permissions.')
+  
+      // only the caller dials out
+      if (role === 'caller') {
+        try {
+          const rStream = await peerClient.initiateCallToPeer(remotePeerId);
+          setRemoteStream(rStream);
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = rStream;
+            remoteVideoRef.current.muted = false;
+            remoteVideoRef.current.play?.().catch(() => {});
+          }
+        } catch {
+          showWarning('Connection Issue', 'Could not establish video connection. Retrying...');
+          setTimeout(async () => {
+            try {
+              const rStream = await peerClient.initiateCallToPeer(remotePeerId);
+              setRemoteStream(rStream);
+              if (remoteVideoRef.current) {
+                remoteVideoRef.current.srcObject = rStream;
+                remoteVideoRef.current.muted = false;
+                remoteVideoRef.current.play?.().catch(() => {});
+              }
+              showInfo('Connected!', 'Video connection established');
+            } catch {
+              showError('Connection Failed', 'Unable to establish video connection. Please try again.');
+            }
+          }, 3000);
+        }
+      }
+    } catch {
+      showError('Video Error', 'Failed to start video call. Please check camera/microphone permissions.');
     }
-  }
-
+  };
+  
   const cancelCall = async () => {
     if (!currentSession) return
 
@@ -795,7 +689,109 @@ export default function LivePage() {
 
   // Incoming calls are now handled globally by CallProvider
 
-  // Video call interface - Mobile optimized
+  // Toggle video stream on/off
+  const toggleVideo = () => {
+    if (!localStream) return;
+    localStream.getVideoTracks().forEach(track => {
+      track.enabled = !videoEnabled;
+    });
+    setVideoEnabled(!videoEnabled);
+  };
+
+  // Toggle audio stream on/off
+  const toggleAudio = () => {
+    if (!localStream) return;
+    localStream.getAudioTracks().forEach(track => {
+      track.enabled = !audioEnabled;
+    });
+    setAudioEnabled(!audioEnabled);
+  };
+
+  // --- End Call handler ---
+  // const endCall = async () => {
+  //   if (!currentSession) return;
+
+  //   try {
+  //     // Disconnect peer connection
+  //     peerClient.disconnect();
+  //     if (localStream) {
+  //       localStream.getTracks().forEach(track => track.stop());
+  //       setLocalStream(null);
+  //     }
+  //     if (remoteStream) {
+  //       setRemoteStream(null);
+  //     }
+
+  //     // Update session status to ended
+  //     await supabase
+  //       .from('sessions')
+  //       .update({
+  //         status: 'ended',
+  //         ended_at: new Date().toISOString()
+  //       })
+  //       .eq('id', currentSession.id);
+
+  //     setCallState('ended');
+  //     setCurrentSession(null);
+  //     setMatchedPeer(null);
+  //     setIncomingCall(null);
+
+  //     showInfo('Call Ended', 'You ended the call.');
+  //   } catch (error) {
+  //     showError('End Call Failed', 'Failed to end the call. Please try again.');
+  //   }
+  // };
+
+  const endCall = async () => {
+    try {
+      console.log('📞 Ending global call...')
+
+      // Update session status to ended
+      if (currentSession) {
+        const { error } = await supabase
+          .from('sessions')
+          .update({
+            status: 'ended',
+            ended_at: new Date().toISOString()
+          })
+          .eq('id', currentSession.id)
+
+        if (error) {
+          console.error('Error ending call:', error)
+        } else {
+          console.log('✅ Call ended successfully')
+        }
+      }
+
+      // Disconnect PeerJS and clean up streams
+      peerClient.disconnect()
+      
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop())
+        setLocalStream(null)
+      }
+      
+      if (remoteStream) {
+        setRemoteStream(null)
+      }
+
+      // Reset all state
+      setCallState('idle')
+      setCurrentSession(null)
+      setIncomingCall(null)
+      
+      showInfo('Call Ended', 'The session has ended.')
+
+    } catch (error) {
+      console.error('Error ending call:', error)
+      
+      // Reset state anyway
+      setCallState('idle')
+      setCurrentSession(null)
+      setIncomingCall(null)
+    }
+  }
+  // --- Video call interface for CALLERS (learners who initiate calls) ---
   if (callState === 'connected') {
     return (
       <div className="fixed inset-0 z-[9999] bg-black flex flex-col">
@@ -806,10 +802,10 @@ export default function LivePage() {
             ref={remoteVideoRef}
             autoPlay
             playsInline
-            className="w-full h-full object-cover"
+            className="w-full h-full "
           />
 
-          {/* Local video (picture-in-picture) - Responsive sizing */}
+          {/* Local video (picture-in-picture) */}
           <div className="absolute top-4 right-4 w-24 h-18 sm:w-48 sm:h-36 bg-gray-800 rounded-lg overflow-hidden">
             <video
               ref={localVideoRef}
@@ -820,7 +816,7 @@ export default function LivePage() {
             />
           </div>
 
-          {/* Call info - Mobile responsive */}
+          {/* Call info */}
           <div className="absolute top-4 left-4 bg-black/70 text-white px-2 py-1 sm:px-4 sm:py-2 rounded-lg">
             <p className="text-xs sm:text-sm">
               Learning: {currentSession?.skill_name || 'Demo Skill'}
@@ -831,8 +827,8 @@ export default function LivePage() {
           </div>
         </div>
 
-        {/* Controls - Mobile optimized */}
-        <div className="p-4 sm:p-6 bg-black/80">
+        {/* Controls */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 bg-black/80 backdrop-blur-sm z-[9999]">
           <div className="flex justify-center space-x-3 sm:space-x-4">
             <Button
               variant={audioEnabled ? "default" : "destructive"}
@@ -861,7 +857,7 @@ export default function LivePage() {
               <PhoneOff className="h-4 w-4 sm:h-6 sm:w-6" />
             </Button>
           </div>
-        </div>
+        </div>     
       </div>
     )
   }
@@ -892,7 +888,7 @@ export default function LivePage() {
             </Button>
 
             {/* Debug button for testing incoming calls */}
-            {process.env.NODE_ENV === 'development' && (
+            {/* {process.env.NODE_ENV === 'development' && (
               <Button
                 onClick={() => {
                   setIncomingCall({
@@ -909,7 +905,7 @@ export default function LivePage() {
               >
                 🧪 Test Incoming Call (Dev Only)
               </Button>
-            )}
+            )} */}
           </CardContent>
         </Card>
       )}

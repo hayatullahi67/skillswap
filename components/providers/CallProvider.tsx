@@ -511,22 +511,22 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
               ref={remoteVideoRef}
               autoPlay
               playsInline
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover pointer-events-none z-0"
             />
 
             {/* Local video (picture-in-picture) - Responsive sizing */}
-            <div className="absolute top-4 right-4 w-24 h-18 sm:w-48 sm:h-36 bg-gray-800 rounded-lg overflow-hidden">
+            <div className="absolute top-4 right-4 w-24 h-18 sm:w-48 sm:h-36 bg-gray-800 rounded-lg overflow-hidden z-10">
               <video
                 ref={localVideoRef}
                 autoPlay
                 playsInline
                 muted
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover pointer-events-none"
               />
             </div>
 
             {/* Call info - Mobile responsive */}
-            <div className="absolute top-4 left-4 bg-black/70 text-white px-2 py-1 sm:px-4 sm:py-2 rounded-lg">
+            <div className="absolute top-4 left-4 bg-black/70 text-white px-2 py-1 sm:px-4 sm:py-2 rounded-lg z-20">
               <p className="text-xs sm:text-sm">
                 Learning: {currentSession?.skill_name || 'Demo Skill'}
               </p>
@@ -537,7 +537,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Controls - Mobile optimized */}
-          <div className="p-4 sm:p-6 bg-black/80">
+          <div className="fixed bottom-0 left-0 right-0 p-4 sm:p-6 bg-black/80 backdrop-blur-sm z-[10000]">
             <div className="flex justify-center space-x-3 sm:space-x-4">
               <Button
                 variant={audioEnabled ? "default" : "destructive"}

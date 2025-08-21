@@ -169,18 +169,18 @@ export default function LoginPage() {
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t" />
             </div>
-            <div className="relative flex justify-center text-xs uppercase">
+            {/* <div className="relative flex justify-center text-xs uppercase">
               <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
-            </div>
+            </div> */}
           </div>
-
+{/* 
           <Button
             variant="outline"
             className="w-full"
             onClick={signInWithGoogle}
           >
             Sign in with Google
-          </Button>
+          </Button> */}
 
           <p className="text-center text-sm text-muted-foreground">
             Don't have an account?{' '}
@@ -190,7 +190,7 @@ export default function LoginPage() {
           </p>
 
           {/* Debug section - remove in production */}
-          {process.env.NODE_ENV === 'development' && (
+          {/* {process.env.NODE_ENV === 'development' && (
             <div className="mt-4 p-3 bg-gray-100 rounded text-xs">
               <button
                 onClick={async () => {
@@ -203,7 +203,7 @@ export default function LoginPage() {
                 Check Auth Status
               </button>
             </div>
-          )}
+          )} */}
         </CardContent>
         </Card>
       </div>

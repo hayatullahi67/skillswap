@@ -150,7 +150,7 @@ export default function ResourcesPage() {
 
   if (loading) {
     return (
-      <div className="p-6">
+      <div className="p-6 flex items-center justify-center min-h-screen">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-gray-200 rounded w-1/3"></div>
           <div className="h-32 bg-gray-200 rounded"></div>

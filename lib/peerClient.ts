@@ -14,30 +14,44 @@ export class PeerClient {
       this.peer = new Peer(userId, {
         debug: 1,
         config: {
+          // iceServers: [
+          //   // { urls: 'stun:stun.l.google.com:19302' },
+          //   // { urls: 'stun:stun1.l.google.com:19302' },
+          //   // { urls: 'stun:stun2.l.google.com:19302' }
+          //   {
+          //     urls: "stun:stun.l.google.com:19302"
+          //   },
+          //   {
+          //     urls: "turn:openrelay.metered.ca:80",
+          //     username: "openrelayproject",
+          //     credential: "openrelayproject"
+          //   },
+          //   {
+          //     urls: "turn:openrelay.metered.ca:443",
+          //     username: "openrelayproject",
+          //     credential: "openrelayproject"
+          //   },
+          //   {
+          //     urls: "turn:openrelay.metered.ca:443?transport=tcp",
+          //     username: "openrelayproject",
+          //     credential: "openrelayproject"
+          //   }
+            
+          // ]
           iceServers: [
-            // { urls: 'stun:stun.l.google.com:19302' },
-            // { urls: 'stun:stun1.l.google.com:19302' },
-            // { urls: 'stun:stun2.l.google.com:19302' }
+            { urls: "stun:stun.l.google.com:19302" },
             {
-              urls: "stun:stun.l.google.com:19302"
-            },
-            {
-              urls: "turn:openrelay.metered.ca:80",
+              urls: "turn:openrelay.metered.ca:3478",
               username: "openrelayproject",
               credential: "openrelayproject"
             },
             {
-              urls: "turn:openrelay.metered.ca:443",
-              username: "openrelayproject",
-              credential: "openrelayproject"
-            },
-            {
-              urls: "turn:openrelay.metered.ca:443?transport=tcp",
+              urls: "turns:openrelay.metered.ca:5349",
               username: "openrelayproject",
               credential: "openrelayproject"
             }
-            
           ]
+          
         }
       });
 
@@ -74,10 +88,15 @@ export class PeerClient {
   async getLocalStream() {
     try {
       this.localStream = await navigator.mediaDevices.getUserMedia({
+        // video: {
+        //   width: { ideal: 1280 },
+        //   height: { ideal: 720 },
+        //   frameRate: { ideal: 30 }
+        // }
         video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 30 }
+          facingMode: "user", // front camera
+          width: { ideal: 640 },
+          height: { ideal: 480 }
         },
         audio: {
           echoCancellation: true,

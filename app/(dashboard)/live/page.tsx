@@ -372,7 +372,7 @@ export default function LivePage() {
           </CardHeader>
           <CardContent className="text-center space-y-4">
             <Button onClick={startLearningForm} size="lg" className="w-full">
-              Find a Learning Partne
+              Find a Learning Partner
             </Button>
 
             {/* Debug button for testing incoming calls */}

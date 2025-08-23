@@ -219,15 +219,8 @@ export class PeerClient {
           
           // Handle mobile-specific errors
           if (isMobile) {
-            if (error.type === 'peer-unavailable') {
-              reject(new Error('Peer is not available. They may be offline or not connected.'));
-            } else if (error.type === 'network') {
-              reject(new Error('Network error. Please check your internet connection.'));
-            } else if (error.type === 'server-error') {
-              reject(new Error('Server error. Please try again later.'));
-            } else {
-              reject(new Error(`Connection failed: ${error.message || error.type}`));
-            }
+            console.error('📱 Mobile: Peer connection error detected');
+            reject(new Error('Connection failed. Please check your internet connection and try again.'));
           } else {
             reject(error);
           }
@@ -435,40 +428,176 @@ export class PeerClient {
   }
 
   onIncomingCall(callback: (remoteStream: MediaStream) => void) {
-    if (!this.peer) return
+    if (!this.peer) {
+      console.error('❌ Cannot set incoming call handler: Peer not initialized');
+      return;
+    }
 
-    if (this.incomingCallHandlerSet) return;
+    // Prevent multiple handlers
+    if (this.incomingCallHandlerSet) {
+      console.log('⚠️ Incoming call handler already set, skipping...');
+      return;
+    }
+    
     this.incomingCallHandlerSet = true;
+    console.log('🎯 Setting up incoming call handler...');
 
     this.peer.on('call', async (call) => {
-      console.log('📞 Incoming call received');
+      console.log('📞 ===== INCOMING CALL RECEIVED =====');
+      console.log('📱 Call object:', call);
+      console.log('🔍 Call metadata:', call.metadata);
+      console.log('📊 Call options:', call.options);
       
-      if (!this.localStream) {
-        try {
-          console.log('🎥 Getting local stream for incoming call...');
-          this.localStream = await this.getLocalStream();
-        } catch (err) {
-          console.error('❌ Could not get local stream for incoming call:', err);
-          return;
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+      
+      console.log(`📱 Device info - Mobile: ${isMobile}, iOS: ${isIOS}, Safari: ${isSafari}`);
+      
+      try {
+        // Check if we have a local stream
+        if (!this.localStream) {
+          console.log('🎥 No local stream, getting one for incoming call...');
+          try {
+            this.localStream = await this.getLocalStream();
+            console.log('✅ Successfully got local stream for incoming call');
+          } catch (err) {
+            console.error('❌ Could not get local stream for incoming call:', err);
+            
+            // For mobile, try to get at least audio
+            if (isMobile) {
+              console.log('🔄 Trying audio-only fallback for mobile...');
+              try {
+                this.localStream = await navigator.mediaDevices.getUserMedia({
+                  video: false,
+                  audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                    sampleRate: 8000,
+                    channelCount: 1
+                  }
+                });
+                console.log('✅ Got audio-only stream for mobile fallback');
+              } catch (audioErr) {
+                console.error('❌ Audio-only fallback also failed:', audioErr);
+                return;
+              }
+            } else {
+              return;
+            }
+          }
+        }
+        
+        // Verify the local stream has tracks
+        if (this.localStream) {
+          const videoTracks = this.localStream.getVideoTracks();
+          const audioTracks = this.localStream.getAudioTracks();
+          console.log(`📊 Local stream tracks - Video: ${videoTracks.length}, Audio: ${audioTracks.length}`);
+          
+          if (videoTracks.length > 0) {
+            console.log('📹 Video track info:', {
+              enabled: videoTracks[0].enabled,
+              readyState: videoTracks[0].readyState,
+              id: videoTracks[0].id
+            });
+          }
+          
+          if (audioTracks.length > 0) {
+            console.log('🎤 Audio track info:', {
+              enabled: audioTracks[0].enabled,
+              readyState: audioTracks[0].readyState,
+              id: audioTracks[0].id
+            });
+          }
+        }
+        
+        console.log('📱 Answering incoming call...');
+        console.log('📤 Sending local stream to peer...');
+        
+        // Answer the call with our local stream
+        call.answer(this.localStream);
+        console.log('✅ Call answered successfully');
+        
+        // Set up call event handlers
+        call.on('stream', (remoteStream) => {
+          console.log('🎉 ===== REMOTE STREAM RECEIVED =====');
+          console.log('📊 Remote stream info:', {
+            id: remoteStream.id,
+            active: remoteStream.active,
+            videoTracks: remoteStream.getVideoTracks().length,
+            audioTracks: remoteStream.getAudioTracks().length
+          });
+          
+          // Log remote track details
+          remoteStream.getVideoTracks().forEach((track, index) => {
+            console.log(`📹 Remote video track ${index}:`, {
+              enabled: track.enabled,
+              readyState: track.readyState,
+              id: track.id
+            });
+          });
+          
+          remoteStream.getAudioTracks().forEach((track, index) => {
+            console.log(`🎤 Remote audio track ${index}:`, {
+              enabled: track.enabled,
+              readyState: track.readyState,
+              id: track.id
+            });
+          });
+          
+          console.log('✅ Calling callback with remote stream');
+          callback(remoteStream);
+        });
+        
+        call.on('error', (error) => {
+          console.error('❌ ===== CALL ERROR =====');
+          console.error('🚨 Error details:', error);
+          
+          // Mobile-specific error handling
+          if (isMobile) {
+            console.error('📱 Mobile: Call error detected');
+          }
+        });
+        
+        call.on('close', () => {
+          console.log('📞 ===== CALL CLOSED =====');
+          console.log('🔄 Call connection ended');
+        });
+        
+        // Use the correct PeerJS event names
+        call.on('iceStateChanged', (state) => {
+          console.log('🧊 ICE state changed:', state);
+        });
+        
+        // Log peer connection details for debugging
+        if (call.peerConnection) {
+          console.log('🔗 Peer connection details:', {
+            iceConnectionState: call.peerConnection.iceConnectionState,
+            iceGatheringState: call.peerConnection.iceGatheringState,
+            connectionState: call.peerConnection.connectionState,
+            signalingState: call.peerConnection.signalingState
+          });
+        }
+        
+      } catch (error) {
+        console.error('❌ ===== ERROR IN INCOMING CALL HANDLER =====');
+        console.error('🚨 Error:', error);
+        
+        // Try to recover by restarting the connection
+        if (isMobile) {
+          console.log('🔄 Mobile device: Attempting to recover from error...');
+          try {
+            await this.restartConnection();
+            console.log('✅ Mobile recovery completed');
+          } catch (recoveryError) {
+            console.error('❌ Mobile recovery failed:', recoveryError);
+          }
         }
       }
-      
-      console.log('📱 Answering call...');
-      call.answer(this.localStream);
-      
-      call.on('stream', (remoteStream) => {
-        console.log('✅ Received remote stream');
-        callback(remoteStream);
-      });
-      
-      call.on('error', (error) => {
-        console.error('❌ Call error:', error);
-      });
-      
-      call.on('close', () => {
-        console.log('📞 Call closed');
-      });
     });
+    
+    console.log('✅ Incoming call handler set up successfully');
   }
 
   async initiateCallToPeer(remotePeerId: string): Promise<MediaStream> {
@@ -636,6 +765,54 @@ export class PeerClient {
       }
     } catch (error) {
       console.error('❌ Error updating media constraints:', error);
+    }
+  }
+
+  // Add simple test method for debugging
+  async testMobileConnection(): Promise<string> {
+    try {
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+      
+      console.log('🧪 Testing mobile connection...');
+      console.log(`📱 Device: ${isMobile ? 'Mobile' : 'Desktop'}`);
+      console.log(`🍎 iOS: ${isIOS}`);
+      console.log(`🌐 Safari: ${isSafari}`);
+      
+      // Check permissions
+      const permissions = await this.checkPermissions();
+      console.log('🔐 Permissions:', permissions);
+      
+      // Check if peer is connected
+      if (this.peer) {
+        console.log('🔗 Peer status:', {
+          open: this.peer.open,
+          id: this.peer.id,
+          destroyed: this.peer.destroyed
+        });
+      } else {
+        console.log('❌ Peer not initialized');
+      }
+      
+      // Check local stream
+      if (this.localStream) {
+        const videoTracks = this.localStream.getVideoTracks();
+        const audioTracks = this.localStream.getAudioTracks();
+        console.log('📊 Local stream:', {
+          videoTracks: videoTracks.length,
+          audioTracks: audioTracks.length,
+          active: this.localStream.active
+        });
+      } else {
+        console.log('❌ No local stream');
+      }
+      
+      return `Mobile test completed. Device: ${isMobile ? 'Mobile' : 'Desktop'}, iOS: ${isIOS}, Safari: ${isSafari}`;
+      
+    } catch (error) {
+      console.error('❌ Mobile connection test failed:', error);
+      return `Test failed: ${error}`;
     }
   }
 

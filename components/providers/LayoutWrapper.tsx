@@ -10,7 +10,7 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   
   // Pages that don't need sidebar
   const authPages = ['/auth/login', '/auth/signup']
-  const isAuthPage = authPages.includes(pathname)
+  const isAuthPage = pathname ? authPages.includes(pathname) : false
 
   if (isAuthPage) {
     return (

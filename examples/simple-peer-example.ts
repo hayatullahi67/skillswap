@@ -1,12 +1,12 @@
 // Example implementation using the new Simple-Peer client with working signaling
 import { PeerClient } from '../lib/peerClient'
-import { SimpleSignaling } from '../lib/simpleSignaling'
+import { initSignaling } from '../lib/simpleSignaling'
 
 // Example video call implementation that actually works
 export class VideoCallExample {
   private localVideo: HTMLVideoElement
   private remoteVideo: HTMLVideoElement
-  private signaling: SimpleSignaling
+  private socket: any
   private myPeerId: string
   private peerClient: PeerClient
 
@@ -17,12 +17,9 @@ export class VideoCallExample {
     
     // Create peer client instance
     this.peerClient = new PeerClient(this.myPeerId)
-    
-    // Initialize signaling
-    this.signaling = new SimpleSignaling(this.peerClient)
   }
 
-  async initialize() {
+  async initialize(serverUrl: string = 'http://localhost:3001', roomId: string = 'default-room') {
     try {
       console.log('🚀 Initializing video call...')
       console.log(`🆔 My Peer ID: ${this.myPeerId}`)
@@ -36,14 +33,8 @@ export class VideoCallExample {
         this.handleIncomingCall(peerId, remoteStream)
       })
       
-      // Set up signaling
-      this.signaling.onSignal(({ from, signal }) => {
-        console.log(`📡 Received signal from: ${from}`)
-        this.peerClient.handleIncomingSignal(from, signal)
-      })
-      
       // Initialize signaling
-      this.signaling.initialize()
+      this.socket = initSignaling(serverUrl, roomId, this.myPeerId)
       
       // Display local video
       if (this.localVideo && this.peerClient['localStream']) {

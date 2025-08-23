@@ -535,6 +535,8 @@ export default function LivePage() {
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = remoteStream;
           remoteVideoRef.current.muted = false;
+
+          
         }
       });
 

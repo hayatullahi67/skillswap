@@ -368,6 +368,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = remoteStream
           remoteVideoRef.current.muted = false // Allow remote audio
+
         }
       })
 

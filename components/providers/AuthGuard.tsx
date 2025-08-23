@@ -11,7 +11,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
 
   const authPages = ['/auth/login', '/auth/signup']
-  const isAuthPage = authPages.includes(pathname)
+  const isAuthPage = pathname ? authPages.includes(pathname) : false
 
   useEffect(() => {
     if (!loading) {

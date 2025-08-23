@@ -23,7 +23,6 @@ export function getSocket() {
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionAttempts: 5,
-      maxHttpBufferSize: 1e6, // 1MB buffer for mobile
     });
 
     socket.on("connect", () => {

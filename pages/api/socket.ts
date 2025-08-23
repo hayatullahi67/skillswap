@@ -16,10 +16,17 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       path: "/api/socket",
       cors: { 
         origin: "*",
-        methods: ["GET", "POST"]
+        methods: ["GET", "POST"],
+        credentials: false
       },
       allowEIO3: true, // allow Engine.IO v3 clients
       transports: ["polling", "websocket"],
+      // Mobile-friendly server options
+      pingTimeout: 60000, // 60 seconds
+      pingInterval: 25000, // 25 seconds
+      upgradeTimeout: 30000, // 30 seconds for mobile networks
+      maxHttpBufferSize: 1e6, // 1MB buffer
+      allowUpgrades: true,
     });
     anyRes.socket.server.io = io;
 

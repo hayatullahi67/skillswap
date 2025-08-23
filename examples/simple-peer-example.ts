@@ -1,5 +1,5 @@
 // Example implementation using the new Simple-Peer client with working signaling
-import { peerClient } from '../lib/peerClient'
+import { PeerClient } from '../lib/peerClient'
 import { SimpleSignaling } from '../lib/simpleSignaling'
 
 // Example video call implementation that actually works
@@ -8,14 +8,18 @@ export class VideoCallExample {
   private remoteVideo: HTMLVideoElement
   private signaling: SimpleSignaling
   private myPeerId: string
+  private peerClient: PeerClient
 
   constructor() {
     this.localVideo = document.getElementById('localVideo') as HTMLVideoElement
     this.remoteVideo = document.getElementById('remoteVideo') as HTMLVideoElement
     this.myPeerId = 'peer_' + Math.random().toString(36).substr(2, 9)
     
+    // Create peer client instance
+    this.peerClient = new PeerClient(this.myPeerId)
+    
     // Initialize signaling
-    this.signaling = new SimpleSignaling(peerClient)
+    this.signaling = new SimpleSignaling(this.peerClient)
   }
 
   async initialize() {
@@ -24,10 +28,10 @@ export class VideoCallExample {
       console.log(`🆔 My Peer ID: ${this.myPeerId}`)
       
       // Initialize the peer client
-      await peerClient.initialize()
+      await this.peerClient.initialize()
       
       // Set up incoming call handler
-      peerClient.onIncomingCall((peerId, remoteStream) => {
+      this.peerClient.onIncomingCall((peerId, remoteStream) => {
         console.log(`📞 Incoming call from: ${peerId}`)
         this.handleIncomingCall(peerId, remoteStream)
       })
@@ -35,15 +39,15 @@ export class VideoCallExample {
       // Set up signaling
       this.signaling.onSignal(({ from, signal }) => {
         console.log(`📡 Received signal from: ${from}`)
-        peerClient.handleIncomingSignal(from, signal)
+        this.peerClient.handleIncomingSignal(from, signal)
       })
       
       // Initialize signaling
       this.signaling.initialize()
       
       // Display local video
-      if (this.localVideo && peerClient['localStream']) {
-        this.localVideo.srcObject = peerClient['localStream']
+      if (this.localVideo && this.peerClient['localStream']) {
+        this.localVideo.srcObject = this.peerClient['localStream']
       }
       
       console.log('✅ Video call initialized successfully')
@@ -59,7 +63,7 @@ export class VideoCallExample {
       console.log(`📞 Making call to: ${remotePeerId}`)
       
       // Create connection as initiator
-      const peer = await peerClient.createConnection(remotePeerId)
+      const peer = await this.peerClient.createConnection(remotePeerId)
       
       // Handle connection established
       peer.on('connect', () => {
@@ -96,7 +100,7 @@ export class VideoCallExample {
       console.log(`📞 Accepting call from: ${peerId}`)
       
       // Accept the connection
-      const peer = await peerClient.acceptConnection(peerId, offerSignal)
+      const peer = await this.peerClient.acceptConnection(peerId, offerSignal)
       
       // Handle connection established
       peer.on('connect', () => {
@@ -122,7 +126,7 @@ export class VideoCallExample {
     console.log(`❌ Rejecting call from: ${peerId}`)
     
     // Clean up any pending connections
-    peerClient.disconnectFromPeer(peerId)
+    this.peerClient.disconnectFromPeer(peerId)
     
     // Hide incoming call UI
     this.hideIncomingCallUI()
@@ -136,39 +140,39 @@ export class VideoCallExample {
     this.remoteVideo.srcObject = null
     
     // Disconnect all peers
-    peerClient.disconnect()
+    this.peerClient.disconnect()
     
     console.log('✅ Call ended')
   }
 
   // Toggle video/audio
   async toggleVideo(enabled: boolean) {
-    await peerClient.updateMediaConstraints(enabled, true)
+    await this.peerClient.updateMediaConstraints(enabled, true)
     console.log(`📹 Video ${enabled ? 'enabled' : 'disabled'}`)
   }
 
   async toggleAudio(enabled: boolean) {
-    await peerClient.updateMediaConstraints(true, enabled)
+    await this.peerClient.updateMediaConstraints(true, enabled)
     console.log(`🎤 Audio ${enabled ? 'enabled' : 'disabled'}`)
   }
 
   // Check connection health
   async checkHealth() {
-    const health = await peerClient.checkConnectionHealth()
+    const health = await this.peerClient.checkConnectionHealth()
     console.log('🔍 Connection health:', health)
     return health
   }
 
   // Test mobile connection
   async testMobileConnection() {
-    const result = await peerClient.testMobileConnection()
+    const result = await this.peerClient.testMobileConnection()
     console.log('🧪 Mobile test result:', result)
     return result
   }
 
   // Get active connections
   getActiveConnections() {
-    const connections = peerClient.getActiveConnections()
+    const connections = this.peerClient.getActiveConnections()
     console.log('🔗 Active connections:', connections)
     return connections
   }

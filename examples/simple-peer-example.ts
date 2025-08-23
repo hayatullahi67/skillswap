@@ -147,18 +147,9 @@ export class VideoCallExample {
     console.log(`🎤 Audio ${enabled ? 'enabled' : 'disabled'}`)
   }
 
-  // Check connection health
-  async checkHealth() {
-    const health = await this.peerClient.checkConnectionHealth()
-    console.log('🔍 Connection health:', health)
-    return health
-  }
-
-  // Test mobile connection
-  async testMobileConnection() {
-    const result = await this.peerClient.testMobileConnection()
-    console.log('🧪 Mobile test result:', result)
-    return result
+  // Debug streams
+  debugStreams() {
+    this.peerClient.debugStreams()
   }
 
   // Get active connections

@@ -1,8 +1,8 @@
 'use client'
 
-import { Phone, PhoneOff, PhoneIncoming } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Phone, PhoneOff } from 'lucide-react'
 
 interface IncomingCallOverlayProps {
   learnerName: string
@@ -17,57 +17,33 @@ export function IncomingCallOverlay({
   onAccept, 
   onReject 
 }: IncomingCallOverlayProps) {
-  // Add console log to verify component is rendering
-  console.log('🔔 IncomingCallOverlay rendering for:', learnerName, skillName)
-  
   return (
-    <div 
-      className="fixed inset-0 bg-black/80 flex items-center justify-center p-4"
-      style={{ 
-        zIndex: 99999,
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0
-      }}
-    >
-      <Card className="border-blue-500 bg-white shadow-2xl animate-pulse w-full max-w-sm mx-auto">
-        <CardHeader className="text-center pb-4">
-          <div className="flex justify-center mb-4">
-            <div className="bg-blue-100 p-4 rounded-full">
-              <PhoneIncoming className="h-12 w-12 text-blue-600" />
-            </div>
-          </div>
-          <CardTitle className="text-xl text-blue-800">Incoming Call</CardTitle>
-          <CardDescription className="text-blue-600 text-base">
-            <strong>{learnerName}</strong> wants to learn <strong>{skillName}</strong>
+    <div className="fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center">
+      <Card className="w-full max-w-md mx-4 animate-pulse">
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl">📞 Incoming Call</CardTitle>
+          <CardDescription>
+            {learnerName} wants to learn {skillName}
           </CardDescription>
         </CardHeader>
-        <CardContent className="pt-0">
-          <div className="flex flex-col space-y-3">
-            <Button
-              onClick={() => {
-                console.log('🔔 Accept button clicked')
-                onAccept()
-              }}
+        <CardContent className="space-y-4">
+          <div className="flex space-x-3">
+            <Button 
+              onClick={onAccept} 
+              className="flex-1 bg-green-600 hover:bg-green-700"
               size="lg"
-              className="bg-green-600 hover:bg-green-700 text-white w-full py-3 text-lg"
             >
-              <Phone className="h-5 w-5 mr-2" />
-              Accept Call
+              <Phone className="h-4 w-4 mr-2" />
+              Accept
             </Button>
-            <Button
-              onClick={() => {
-                console.log('🔔 Reject button clicked')
-                onReject()
-              }}
-              variant="destructive"
+            <Button 
+              onClick={onReject} 
+              variant="destructive" 
+              className="flex-1"
               size="lg"
-              className="w-full py-3 text-lg"
             >
-              <PhoneOff className="h-5 w-5 mr-2" />
-              Decline Call
+              <PhoneOff className="h-4 w-4 mr-2" />
+              Decline
             </Button>
           </div>
         </CardContent>

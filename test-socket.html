@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Socket.IO Test</title>
+</head>
+<body>
+    <h1>Socket.IO Connection Test</h1>
+    <div id="status">Connecting...</div>
+    <div id="logs"></div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io({
+            path: "/api/socket"
+        });
+
+        const statusDiv = document.getElementById('status');
+        const logsDiv = document.getElementById('logs');
+
+        function log(message) {
+            console.log(message);
+            logsDiv.innerHTML += '<div>' + new Date().toLocaleTimeString() + ': ' + message + '</div>';
+        }
+
+        socket.on('connect', () => {
+            statusDiv.innerHTML = 'Connected! Socket ID: ' + socket.id;
+            log('Connected to Socket.IO server');
+            
+            // Test registration
+            socket.emit('register', 'test-peer-id');
+        });
+
+        socket.on('registered', (data) => {
+            log('Registration confirmed: ' + JSON.stringify(data));
+        });
+
+        socket.on('disconnect', (reason) => {
+            statusDiv.innerHTML = 'Disconnected: ' + reason;
+            log('Disconnected: ' + reason);
+        });
+
+        socket.on('connect_error', (error) => {
+            statusDiv.innerHTML = 'Connection Error: ' + error.message;
+            log('Connection error: ' + error.message);
+        });
+    </script>
+</body>
+</html>

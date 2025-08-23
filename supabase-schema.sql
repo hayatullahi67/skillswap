@@ -49,12 +49,25 @@ create table availability (
     last_seen timestamp default now()
 );
 
+-- 6. WebRTC Signals Table
+create table webrtc_signals (
+    id bigserial primary key,
+    session_id bigint references sessions(id) on delete cascade,
+    from_peer_id text not null,
+    to_peer_id text not null,
+    signal_data jsonb not null,
+    signal_type text not null, -- 'offer', 'answer', 'ice-candidate'
+    processed boolean default false,
+    created_at timestamp default now()
+);
+
 -- Enable Row Level Security (RLS)
 alter table profiles enable row level security;
 alter table user_skills enable row level security;
 alter table sessions enable row level security;
 alter table session_resources enable row level security;
 alter table availability enable row level security;
+alter table webrtc_signals enable row level security;
 
 -- RLS Policies
 
@@ -116,6 +129,34 @@ create policy "Users can view all availability" on availability
 
 create policy "Users can manage own availability" on availability
     for all using (auth.uid() = user_id);
+
+-- WebRTC Signals: Users can manage signals for their sessions
+create policy "Users can view signals for their sessions" on webrtc_signals
+    for select using (
+        exists (
+            select 1 from sessions 
+            where sessions.id = webrtc_signals.session_id 
+            and (sessions.host_id = auth.uid() or sessions.learner_id = auth.uid())
+        )
+    );
+
+create policy "Users can insert signals for their sessions" on webrtc_signals
+    for insert with check (
+        exists (
+            select 1 from sessions 
+            where sessions.id = webrtc_signals.session_id 
+            and (sessions.host_id = auth.uid() or sessions.learner_id = auth.uid())
+        )
+    );
+
+create policy "Users can update signals for their sessions" on webrtc_signals
+    for update using (
+        exists (
+            select 1 from sessions 
+            where sessions.id = webrtc_signals.session_id 
+            and (sessions.host_id = auth.uid() or sessions.learner_id = auth.uid())
+        )
+    );
 
 -- Functions and Triggers
 

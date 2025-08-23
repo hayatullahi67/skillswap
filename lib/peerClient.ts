@@ -1,163 +1,355 @@
-// import Peer from 'peerjs'
+// import SimplePeer from 'simple-peer'
+
+// export interface PeerConnection {
+//   id: string
+//   peer: SimplePeer.Instance
+//   isInitiator: boolean
+//   remoteStream?: MediaStream
+// }
 
 // export class PeerClient {
-//   private peer: Peer | null = null
+//   private connections: Map<string, PeerConnection> = new Map()
 //   private localStream: MediaStream | null = null
-//   private incomingCallHandlerSet: boolean = false
+//   private onIncomingCallCallback?: (peerId: string, remoteStream: MediaStream) => void
+//   private isInitialized: boolean = false
+//   private pendingSignals: Map<string, any[]> = new Map() // Store pending signals
 
-//   async initialize(userId: string) {
+//   async initialize(): Promise<void> {
 //     try {
-//       // Always get local stream before peer connection
-//       if (!this.localStream) {
-//         await this.getLocalStream();
-//       }
-//       this.peer = new Peer(userId, {
-//         debug: 1,
-//         config: {
-//           iceServers: [
-//             // { urls: 'stun:stun.l.google.com:19302' },
-//             // { urls: 'stun:stun1.l.google.com:19302' },
-//             // { urls: 'stun:stun2.l.google.com:19302' }
-//             {
-//               urls: "stun:stun.l.google.com:19302"
-//             },
-//             {
-//               urls: "turn:openrelay.metered.ca:80",
-//               username: "openrelayproject",
-//               credential: "openrelayproject"
-//             },
-//             {
-//               urls: "turn:openrelay.metered.ca:443",
-//               username: "openrelayproject",
-//               credential: "openrelayproject"
-//             },
-//             {
-//               urls: "turn:openrelay.metered.ca:443?transport=tcp",
-//               username: "openrelayproject",
-//               credential: "openrelayproject"
-//             }
-            
-//           ]
-//         }
-//       });
-
-//       this.incomingCallHandlerSet = false; // Reset handler flag on new peer
-
-//       return new Promise<void>((resolve, reject) => {
-//         this.peer!.on('open', (id) => {
-//           console.log('Peer connection opened with ID:', id)
-//           resolve()
-//         });
-
-//         this.peer!.on('error', (error) => {
-//           console.error('Peer error:', error)
-//           reject(error)
-//         });
-
-//         this.peer!.on('disconnected', () => {
-//           console.log('Peer disconnected, attempting to reconnect...')
-//           this.peer!.reconnect()
-//         });
-
-//         setTimeout(() => {
-//           if (this.peer && !this.peer.open) {
-//             reject(new Error('Peer connection timeout'))
-//           }
-//         }, 10000)
-//       })
+//       console.log('🚀 Initializing Simple-Peer client...')
+//       await this.getLocalStream()
+//       this.isInitialized = true
+//       console.log('✅ Simple-Peer client initialized successfully')
 //     } catch (error) {
-//       console.error('Failed to initialize peer:', error)
+//       console.error('❌ Failed to initialize Simple-Peer client:', error)
 //       throw error
 //     }
 //   }
 
-//   async getLocalStream() {
+//   async getLocalStream(): Promise<MediaStream> {
 //     try {
+//       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+      
+//       const videoConstraints = isMobile ? {
+//         width: { ideal: 320, max: 640 },
+//         height: { ideal: 240, max: 480 },
+//         frameRate: { ideal: 10, max: 15 },
+//         facingMode: 'user'
+//       } : {
+//         width: { ideal: 1280 },
+//         height: { ideal: 720 },
+//         frameRate: { ideal: 30 }
+//       }
+
+//       const audioConstraints = isMobile ? {
+//         echoCancellation: true,
+//         noiseSuppression: true,
+//         autoGainControl: true,
+//         sampleRate: 8000,
+//         channelCount: 1
+//       } : {
+//         echoCancellation: true,
+//         noiseSuppression: true,
+//         autoGainControl: true,
+//         sampleRate: 44100
+//       }
+
 //       this.localStream = await navigator.mediaDevices.getUserMedia({
-//         video: {
-//           width: { ideal: 1280 },
-//           height: { ideal: 720 },
-//           frameRate: { ideal: 30 }
-//         },
-//         audio: {
-//           echoCancellation: true,
-//           noiseSuppression: true,
-//           autoGainControl: true,
-//           sampleRate: 44100
-//         }
+//         video: videoConstraints,
+//         audio: audioConstraints
 //       })
+      
+//       console.log('✅ Got media stream')
 //       return this.localStream
+      
 //     } catch (error) {
-//       try {
-//         this.localStream = await navigator.mediaDevices.getUserMedia({
-//           video: false,
-//           audio: {
-//             echoCancellation: true,
-//             noiseSuppression: true,
-//             autoGainControl: true,
-//             sampleRate: 44100
+//       console.error('❌ Media access failed:', error)
+//       throw new Error('Unable to access camera or microphone. Please check permissions.')
+//     }
+//   }
+
+//   // Create a new peer connection (initiator)
+//   async createConnection(peerId: string): Promise<SimplePeer.Instance> {
+//     if (!this.isInitialized || !this.localStream) {
+//       throw new Error('Peer client not initialized or no local stream')
+//     }
+
+//     console.log(`🔗 Creating connection to peer: ${peerId}`)
+    
+//     const peer = new (SimplePeer as any)({
+//       initiator: true,
+//       trickle: false, // Disable trickling for better mobile support
+//       stream: this.localStream,
+//       config: {
+//         iceServers: [
+//           { urls: 'stun:stun.l.google.com:19302' },
+//           { urls: 'stun:stun1.l.google.com:19302' },
+//           {
+//             urls: 'turn:openrelay.metered.ca:80',
+//             username: 'openrelayproject',
+//             credential: 'openrelayproject'
 //           }
-//         })
-//         return this.localStream
-//       } catch (audioError) {
-//         throw new Error('Unable to access camera or microphone. Please check permissions.')
+//         ]
 //       }
+//     })
+
+//     this.setupPeerEventHandlers(peer, peerId, true)
+//     this.connections.set(peerId, { id: peerId, peer, isInitiator: true })
+    
+//     // Check if we have pending signals for this peer
+//     const pendingSignals = this.pendingSignals.get(peerId) || []
+//     pendingSignals.forEach(signal => {
+//       console.log(`📡 Applying pending signal to peer: ${peerId}`)
+//       peer.signal(signal)
+//     })
+//     this.pendingSignals.delete(peerId)
+    
+//     return peer
+//   }
+
+//   // Accept an incoming connection (non-initiator)
+//   async acceptConnection(peerId: string, offerSignal: any): Promise<SimplePeer.Instance> {
+//     if (!this.isInitialized || !this.localStream) {
+//       throw new Error('Peer client not initialized or no local stream')
+//     }
+
+//     console.log(`📞 Accepting connection from peer: ${peerId}`)
+    
+//     const peer = new (SimplePeer as any)({
+//       initiator: false,
+//       trickle: false, // Disable trickling for better mobile support
+//       stream: this.localStream,
+//       config: {
+//         iceServers: [
+//           { urls: 'stun:stun.l.google.com:19302' },
+//           { urls: 'stun:stun1.l.google.com:19302' },
+//           {
+//             urls: 'turn:openrelay.metered.ca:80',
+//             username: 'openrelayproject',
+//             credential: 'openrelayproject'
+//           }
+//         ]
+//       }
+//     })
+
+//     this.setupPeerEventHandlers(peer, peerId, false)
+//     this.connections.set(peerId, { id: peerId, peer, isInitiator: false })
+    
+//     // Signal the peer with the offer immediately
+//     console.log(`📡 Signaling peer with offer: ${peerId}`)
+//     peer.signal(offerSignal)
+    
+//     return peer
+//   }
+
+//   // Handle incoming signals (this is the key to making it work!)
+//   handleIncomingSignal(fromPeerId: string, signalData: any): void {
+//     console.log(`📡 Received signal from: ${fromPeerId}`, signalData.type)
+    
+//     const connection = this.connections.get(fromPeerId)
+//     if (connection) {
+//       // We have an active connection, signal it directly
+//       console.log(`📡 Signaling existing connection: ${fromPeerId}`)
+//       connection.peer.signal(signalData)
+//     } else {
+//       // Store the signal for when connection is created
+//       console.log(`📡 Storing signal for future connection: ${fromPeerId}`)
+//       if (!this.pendingSignals.has(fromPeerId)) {
+//         this.pendingSignals.set(fromPeerId, [])
+//       }
+//       this.pendingSignals.get(fromPeerId)!.push(signalData)
 //     }
 //   }
 
-//   onIncomingCall(callback: (remoteStream: MediaStream) => void) {
-//     if (!this.peer) return
+//   private setupPeerEventHandlers(peer: SimplePeer.Instance, peerId: string, isInitiator: boolean) {
+//     peer.on('connect', () => {
+//       console.log(`🔗 Connected to peer: ${peerId}`)
+//     })
 
-//     // Prevent multiple handlers
-//     if (this.incomingCallHandlerSet) return;
-//     this.incomingCallHandlerSet = true;
+//     peer.on('stream', (remoteStream: MediaStream) => {
+//       console.log(`🎉 Received stream from peer: ${peerId}`)
+      
+//       const connection = this.connections.get(peerId)
+//       if (connection) {
+//         connection.remoteStream = remoteStream
+//       }
 
-//     this.peer.on('call', async (call) => {
+//       if (this.onIncomingCallCallback) {
+//         this.onIncomingCallCallback(peerId, remoteStream)
+//       }
+//     })
+
+//     peer.on('signal', (signalData: any) => {
+//       console.log(`📡 Signal from peer: ${peerId}`, signalData.type)
+//       // This signal should be sent to the other peer via your signaling mechanism
+//       this.handleOutgoingSignal(peerId, signalData)
+//     })
+
+//     peer.on('iceStateChange', (state: string) => {
+//       console.log(`🧊 ICE state for peer ${peerId}:`, state)
+//     })
+
+//     peer.on('close', () => {
+//       console.log(`🔌 Connection closed with peer: ${peerId}`)
+//       this.connections.delete(peerId)
+//     })
+
+//     peer.on('error', (error: Error) => {
+//       console.error(`❌ Error with peer ${peerId}:`, error)
+//     })
+//   }
+
+//   // Handle outgoing signals - you need to implement this in your app
+//   private handleOutgoingSignal(peerId: string, signalData: any) {
+//     console.log(`📡 Outgoing signal to peer: ${peerId}`, signalData.type)
+    
+//     // This is where you'd send the signal to the other peer
+//     // You need to implement this based on your signaling mechanism
+    
+//     // For now, let's emit a custom event that your app can listen to
+//     const event = new CustomEvent('peerSignal', {
+//       detail: { to: peerId, signal: signalData }
+//     })
+//     window.dispatchEvent(event)
+//   }
+
+//   onIncomingCall(callback: (peerId: string, remoteStream: MediaStream) => void) {
+//     this.onIncomingCallCallback = callback
+//     console.log('🎯 Incoming call callback set')
+//   }
+
+//   getConnectionStatus(peerId: string): { connected: boolean, hasStream: boolean } {
+//     const connection = this.connections.get(peerId)
+//     if (!connection) {
+//       return { connected: false, hasStream: false }
+//     }
+
+//     return {
+//       connected: connection.peer.connected,
+//       hasStream: !!connection.remoteStream
+//     }
+//   }
+
+//   getActiveConnections(): string[] {
+//     return Array.from(this.connections.keys()).filter(peerId => {
+//       const connection = this.connections.get(peerId)
+//       return connection && connection.peer.connected
+//     })
+//   }
+
+//   async updateMediaConstraints(isVideoEnabled: boolean, isAudioEnabled: boolean): Promise<void> {
+//     try {
+//       if (this.localStream) {
+//         const videoTrack = this.localStream.getVideoTracks()[0]
+//         if (videoTrack) videoTrack.enabled = isVideoEnabled
+        
+//         const audioTrack = this.localStream.getAudioTracks()[0]
+//         if (audioTrack) audioTrack.enabled = isAudioEnabled
+        
+//         console.log(`📹 Video: ${isVideoEnabled}, 🎤 Audio: ${isAudioEnabled}`)
+//       }
+//     } catch (error) {
+//       console.error('❌ Error updating media constraints:', error)
+//     }
+//   }
+
+//   async checkConnectionHealth(): Promise<{ status: string, details: any }> {
+//     try {
+//       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+      
+//       if (!this.isInitialized) {
+//         return { status: 'not_initialized', details: 'Peer client not initialized' }
+//       }
+
 //       if (!this.localStream) {
-//         try {
-//           this.localStream = await this.getLocalStream();
-//         } catch (err) {
-//           console.error('❌ Could not get local stream for incoming call:', err);
-//           return;
-//         }
+//         return { status: 'no_stream', details: 'No local media stream' }
 //       }
-//       call.answer(this.localStream)
-//       call.on('stream', (remoteStream) => {
-//         callback(remoteStream)
-//       })
-//       call.on('error', (error) => {
-//         console.error('Call error:', error)
-//       })
-//     })
-//   }
 
-//   async initiateCallToPeer(remotePeerId: string): Promise<MediaStream> {
-//     if (!this.peer || !this.localStream) {
-//       throw new Error('Peer not initialized or no local stream')
+//       const activeConnections = this.getActiveConnections()
+//       const videoTrack = this.localStream.getVideoTracks()[0]
+//       const audioTrack = this.localStream.getAudioTracks()[0]
+
+//       const health = {
+//         initialized: this.isInitialized,
+//         hasLocalStream: !!this.localStream,
+//         hasVideo: !!videoTrack,
+//         hasAudio: !!audioTrack,
+//         videoEnabled: videoTrack?.enabled || false,
+//         audioEnabled: audioTrack?.enabled || false,
+//         activeConnections: activeConnections.length,
+//         deviceType: isMobile ? 'mobile' : 'desktop'
+//       }
+
+//       if (health.hasLocalStream && health.activeConnections > 0) {
+//         return { status: 'healthy', details: health }
+//       } else if (health.hasLocalStream) {
+//         return { status: 'partial', details: health }
+//       } else {
+//         return { status: 'unhealthy', details: health }
+//       }
+//     } catch (error) {
+//       return { status: 'error', details: error }
 //     }
-//     return new Promise((resolve, reject) => {
-//       const call = this.peer!.call(remotePeerId, this.localStream!)
-//       call.on('stream', (remoteStream) => {
-//         resolve(remoteStream)
-//       })
-//       call.on('error', (error) => {
-//         reject(error)
-//       })
-//       setTimeout(() => {
-//         reject(new Error('Call connection timeout'))
-//       }, 15000)
-//     })
 //   }
 
-//   disconnect() {
+//   async testMobileConnection(): Promise<string> {
+//     try {
+//       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+//       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+      
+//       console.log('🧪 Testing Simple-Peer mobile connection...')
+//       console.log(`📱 Device: ${isMobile ? 'Mobile' : 'Desktop'}`)
+//       console.log(`🍎 iOS: ${isIOS}`)
+      
+//       if (!this.isInitialized) {
+//         return 'Test failed: Peer client not initialized'
+//       }
+      
+//       if (this.localStream) {
+//         const videoTracks = this.localStream.getVideoTracks()
+//         const audioTracks = this.localStream.getAudioTracks()
+//         console.log('📊 Local stream:', {
+//           videoTracks: videoTracks.length,
+//           audioTracks: audioTracks.length
+//         })
+//       }
+      
+//       const activeConnections = this.getActiveConnections()
+//       console.log('🔗 Active connections:', activeConnections.length)
+      
+//       return `Simple-Peer test completed. Device: ${isMobile ? 'Mobile' : 'Desktop'}, iOS: ${isIOS}, Connections: ${activeConnections.length}`
+      
+//     } catch (error) {
+//       console.error('❌ Simple-Peer test failed:', error)
+//       return `Test failed: ${error}`
+//     }
+//   }
+
+//   disconnectFromPeer(peerId: string): void {
+//     const connection = this.connections.get(peerId)
+//     if (connection) {
+//       connection.peer.destroy()
+//       this.connections.delete(peerId)
+//     }
+//   }
+
+//   disconnect(): void {
+//     console.log('🛑 Disconnecting all peers...')
+    
+//     this.connections.forEach((connection) => {
+//       connection.peer.destroy()
+//     })
+    
+//     this.connections.clear()
+//     this.pendingSignals.clear()
+    
 //     if (this.localStream) {
 //       this.localStream.getTracks().forEach(track => track.stop())
 //       this.localStream = null
 //     }
-//     if (this.peer) {
-//       this.peer.destroy()
-//       this.peer = null
-//     }
+    
+//     this.isInitialized = false
+//     console.log('✅ All connections disconnected')
 //   }
 // }
 
@@ -165,670 +357,525 @@
 
 
 
-import Peer from 'peerjs'
+
+// lib/peerClient.ts - Updated for Next.js
+import SimplePeer from 'simple-peer'
+
+export interface PeerConnection {
+  id: string
+  peer: SimplePeer.Instance
+  isInitiator: boolean
+  remoteStream?: MediaStream
+}
 
 export class PeerClient {
-  private peer: Peer | null = null
+  private connections: Map<string, PeerConnection> = new Map()
   private localStream: MediaStream | null = null
-  private incomingCallHandlerSet: boolean = false
+  private onIncomingCallCallback?: (peerId: string, remoteStream: MediaStream) => void
+  private onSignalCallback?: (peerId: string, signalData: any) => void
+  private isInitialized: boolean = false
+  private pendingSignals: Map<string, any[]> = new Map()
+  private myPeerId: string = ''
 
-  async initialize(userId: string) {
-    try {
-      // Check if we're on mobile and log device info
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-      const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
-      
-      console.log(`🚀 Initializing peer client for device: ${isMobile ? 'Mobile' : 'Desktop'}`);
-      console.log(`📱 iOS: ${isIOS}, Safari: ${isSafari}`);
-      
-      // Check permissions first on mobile
-      if (isMobile) {
-        const permissions = await this.checkPermissions();
-        console.log('🔐 Current permissions:', permissions);
-        
-        if (!permissions.video && !permissions.audio) {
-          console.log('⚠️ No permissions granted, requesting...');
-          const granted = await this.requestPermissions();
-          if (!granted) {
-            throw new Error('Camera/microphone permissions are required for video calls');
-          }
-        }
-      }
-      
-      // Always get local stream before peer connection
-      if (!this.localStream) {
-        console.log('🎥 Getting local media stream...');
-        await this.getLocalStream();
-      }
-      
-      // Mobile-specific peer configuration
-      const peerConfig = isMobile ? this.getMobilePeerConfig() : this.getDesktopPeerConfig();
-      
-      this.peer = new Peer(userId, peerConfig);
-      this.incomingCallHandlerSet = false;
-
-      return new Promise<void>((resolve, reject) => {
-        this.peer!.on('open', (id) => {
-          console.log('✅ Peer connection opened with ID:', id);
-          resolve();
-        });
-
-        this.peer!.on('error', (error) => {
-          console.error('❌ Peer error:', error);
-          
-          // Handle mobile-specific errors
-          if (isMobile) {
-            console.error('📱 Mobile: Peer connection error detected');
-            reject(new Error('Connection failed. Please check your internet connection and try again.'));
-          } else {
-            reject(error);
-          }
-        });
-
-        this.peer!.on('disconnected', () => {
-          console.log('⚠️ Peer disconnected, attempting to reconnect...');
-          this.peer!.reconnect();
-        });
-
-        // Longer timeout for mobile devices
-        const timeout = isMobile ? 15000 : 10000;
-        setTimeout(() => {
-          if (this.peer && !this.peer.open) {
-            reject(new Error(`Peer connection timeout after ${timeout}ms`));
-          }
-        }, timeout);
-      });
-    } catch (error) {
-      console.error('❌ Failed to initialize peer:', error);
-      throw error;
+  constructor(customPeerId?: string) {
+    // Use custom peer ID if provided, otherwise generate one
+    this.myPeerId = customPeerId || 'peer_' + Math.random().toString(36).substring(2, 15)
+    
+    // Only set up browser-specific listeners if we're in the browser
+    if (typeof window !== 'undefined') {
+      this.setupBrowserListeners()
     }
   }
 
-  private getMobilePeerConfig() {
-    return {
-      debug: 1,
-      config: {
-        iceServers: [
-          // Primary STUN servers
-          { urls: "stun:stun.l.google.com:19302" },
-          { urls: "stun:stun1.l.google.com:19302" },
-          { urls: "stun:stun2.l.google.com:19302" },
-          { urls: "stun:stun3.l.google.com:19302" },
-          { urls: "stun:stun4.l.google.com:19302" },
-          
-          // TURN servers for mobile NAT traversal
-          {
-            urls: "turn:openrelay.metered.ca:80",
-            username: "openrelayproject",
-            credential: "openrelayproject"
-          },
-          {
-            urls: "turn:openrelay.metered.ca:443",
-            username: "openrelayproject",
-            credential: "openrelayproject"
-          },
-          {
-            urls: "turn:openrelay.metered.ca:443?transport=tcp",
-            username: "openrelayproject",
-            credential: "openrelayproject"
-          }
-        ],
-        iceCandidatePoolSize: 10,
-        iceTransportPolicy: 'all'
-      }
-    };
+  // Method to set a custom peer ID (must be called before initialization)
+  setPeerId(peerId: string): void {
+    if (this.isInitialized) {
+      console.warn('⚠️ Cannot change peer ID after initialization')
+      return
+    }
+    this.myPeerId = peerId
+    console.log('🆔 Peer ID set to:', peerId)
   }
 
-  private getDesktopPeerConfig() {
-    return {
-      debug: 1,
-      config: {
-        iceServers: [
-          { urls: "stun:stun.l.google.com:19302" },
-          {
-            urls: "turn:openrelay.metered.ca:80",
-            username: "openrelayproject",
-            credential: "openrelayproject"
-          },
-          {
-            urls: "turn:openrelay.metered.ca:443",
-            username: "openrelayproject",
-            credential: "openrelayproject"
-          }
-        ]
+  private setupBrowserListeners() {
+    // Listen for custom events from signaling
+    window.addEventListener('peerSignal', (event: any) => {
+      const { to, signal } = event.detail
+      if (this.onSignalCallback) {
+        this.onSignalCallback(to, signal)
       }
-    };
+    })
   }
 
-  async getLocalStream() {
+  getMyPeerId(): string {
+    return this.myPeerId
+  }
+
+  // Set callback for outgoing signals
+  onSignal(callback: (peerId: string, signalData: any) => void) {
+    this.onSignalCallback = callback
+  }
+
+  async initialize(): Promise<void> {
     try {
-      // Better mobile detection
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-      const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+      console.log('🚀 Initializing Simple-Peer client...')
+      await this.getLocalStream()
+      this.isInitialized = true
+      console.log('✅ Simple-Peer client initialized successfully')
+    } catch (error) {
+      console.error('❌ Failed to initialize Simple-Peer client:', error)
+      throw error
+    }
+  }
+
+  async getLocalStream(): Promise<MediaStream> {
+    try {
+      // Check if we're in a browser environment
+      if (typeof navigator === 'undefined' || !navigator.mediaDevices) {
+        throw new Error('Not in browser environment or no media devices available')
+      }
+
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
       
-      console.log(`📱 Device: ${isMobile ? 'Mobile' : 'Desktop'}, iOS: ${isIOS}, Safari: ${isSafari}`);
-      
-      // Mobile-optimized constraints
       const videoConstraints = isMobile ? {
-        width: { ideal: 320, max: 640 }, // Much lower for mobile
+        width: { ideal: 320, max: 640 },
         height: { ideal: 240, max: 480 },
-        frameRate: { ideal: 10, max: 15 }, // Lower frame rate for mobile
-        facingMode: 'user',
-        aspectRatio: { ideal: 4/3 }
+        frameRate: { ideal: 10, max: 15 },
+        facingMode: 'user'
       } : {
         width: { ideal: 1280 },
         height: { ideal: 720 },
         frameRate: { ideal: 30 }
-      };
+      }
 
-      // Audio constraints optimized for mobile
       const audioConstraints = isMobile ? {
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true,
-        sampleRate: 8000, // Much lower for mobile compatibility
-        channelCount: 1 // Mono for mobile
+        sampleRate: 8000,
+        channelCount: 1
       } : {
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true,
         sampleRate: 44100
-      };
-
-      console.log('🎥 Requesting media with constraints:', { video: videoConstraints, audio: audioConstraints });
+      }
 
       this.localStream = await navigator.mediaDevices.getUserMedia({
         video: videoConstraints,
         audio: audioConstraints
-      });
+      })
       
-      console.log('✅ Got video + audio stream');
-      return this.localStream;
+      console.log('✅ Got media stream', {
+        videoTracks: this.localStream.getVideoTracks().length,
+        audioTracks: this.localStream.getAudioTracks().length
+      })
+      
+      return this.localStream
       
     } catch (error) {
-      console.error('❌ Video + audio failed, trying video only:', error);
-      
-      try {
-        // Try video only
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        const videoConstraints = isMobile ? {
-          width: { ideal: 320, max: 640 },
-          height: { ideal: 240, max: 480 },
-          frameRate: { ideal: 10, max: 15 },
-          facingMode: 'user'
-        } : {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 30 }
-        };
-
-        this.localStream = await navigator.mediaDevices.getUserMedia({
-          video: videoConstraints,
-          audio: false
-        });
-        
-        console.log('✅ Got video-only stream');
-        return this.localStream;
-        
-      } catch (videoError) {
-        console.error('❌ Video only failed, trying audio only:', videoError);
-        
-        try {
-          // Fallback to audio only with mobile-optimized settings
-          const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-          const audioConstraints = isMobile ? {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-            sampleRate: 8000,
-            channelCount: 1
-          } : {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-            sampleRate: 44100
-          };
-
-          this.localStream = await navigator.mediaDevices.getUserMedia({
-            video: false,
-            audio: audioConstraints
-          });
-          
-          console.log('✅ Got audio-only stream');
-          return this.localStream;
-          
-        } catch (audioError) {
-          console.error('❌ All media access failed:', audioError);
-          
-          // Provide specific error messages for mobile
-          let errorMessage: string;
-          if (audioError instanceof Error) {
-            errorMessage = audioError.message;
-          } else if (typeof audioError === 'string') {
-            errorMessage = audioError;
-          } else {
-            errorMessage = 'Unknown error occurred';
-          }
-          
-          // Check if it's a permission issue
-          if (errorMessage.includes('Permission') || errorMessage.includes('denied')) {
-            throw new Error('Camera/microphone permission denied. Please allow access in your browser settings.');
-          } else if (errorMessage.includes('NotFound') || errorMessage.includes('not found')) {
-            throw new Error('No camera or microphone found on this device.');
-          } else if (errorMessage.includes('NotAllowedError')) {
-            throw new Error('Camera/microphone access blocked. Please check your browser permissions.');
-          } else {
-            throw new Error(`Unable to access camera or microphone: ${errorMessage}`);
-          }
-        }
-      }
+      console.error('❌ Media access failed:', error)
+      throw new Error('Unable to access camera or microphone. Please check permissions.')
     }
   }
 
-  onIncomingCall(callback: (remoteStream: MediaStream) => void) {
-    if (!this.peer) {
-      console.error('❌ Cannot set incoming call handler: Peer not initialized');
-      return;
+  // Create a new peer connection (initiator)
+  async createConnection(peerId: string): Promise<SimplePeer.Instance> {
+    if (!this.isInitialized || !this.localStream) {
+      throw new Error('Peer client not initialized or no local stream')
     }
 
-    // Prevent multiple handlers
-    if (this.incomingCallHandlerSet) {
-      console.log('⚠️ Incoming call handler already set, skipping...');
-      return;
+    console.log(`🔗 Creating connection to peer: ${peerId}`)
+    
+    const peer = new (SimplePeer as any)({
+      initiator: true,
+      trickle: true, // Enable trickling for better connectivity
+      stream: this.localStream,
+      config: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          {
+            urls: 'turn:openrelay.metered.ca:80',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+          }
+        ]
+      }
+    })
+
+    this.setupPeerEventHandlers(peer, peerId, true)
+    this.connections.set(peerId, { id: peerId, peer, isInitiator: true })
+    
+    // Apply any pending signals
+    const pendingSignals = this.pendingSignals.get(peerId) || []
+    pendingSignals.forEach(signal => {
+      console.log(`📡 Applying pending signal to peer: ${peerId}`)
+      peer.signal(signal)
+    })
+    this.pendingSignals.delete(peerId)
+    
+    return peer
+  }
+
+  // Accept an incoming connection (non-initiator)
+  async acceptConnection(peerId: string, offerSignal?: any): Promise<SimplePeer.Instance> {
+    if (!this.isInitialized || !this.localStream) {
+      throw new Error('Peer client not initialized or no local stream')
+    }
+
+    console.log(`📞 Accepting connection from peer: ${peerId}`)
+    
+    const peer = new (SimplePeer as any)({
+      initiator: false,
+      trickle: true, // Enable trickling
+      stream: this.localStream,
+      config: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          {
+            urls: 'turn:openrelay.metered.ca:80',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+          }
+        ]
+      }
+    })
+
+    this.setupPeerEventHandlers(peer, peerId, false)
+    this.connections.set(peerId, { id: peerId, peer, isInitiator: false })
+    
+    // If caller passed the offer, signal immediately
+    if (offerSignal) {
+      peer.signal(offerSignal)
     }
     
-    this.incomingCallHandlerSet = true;
-    console.log('🎯 Setting up incoming call handler...');
+    // Also apply any pending signals we buffered earlier (including the offer)
+    const pending = this.pendingSignals.get(peerId) || []
+    pending.forEach(sig => peer.signal(sig))
+    this.pendingSignals.delete(peerId)
+    
+    return peer
+  }
 
-    this.peer.on('call', async (call) => {
-      console.log('📞 ===== INCOMING CALL RECEIVED =====');
-      console.log('📱 Call object:', call);
-      console.log('🔍 Call metadata:', call.metadata);
-      console.log('📊 Call options:', call.options);
-      
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-      const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
-      
-      console.log(`📱 Device info - Mobile: ${isMobile}, iOS: ${isIOS}, Safari: ${isSafari}`);
-      
+  // Handle incoming signals
+  handleIncomingSignal(fromPeerId: string, signalData: any): void {
+    console.log(`📡 Received signal from: ${fromPeerId}`, signalData.type)
+    
+    const connection = this.connections.get(fromPeerId)
+    if (connection) {
+      console.log(`📡 Signaling existing connection: ${fromPeerId}`)
       try {
-        // Check if we have a local stream
-        if (!this.localStream) {
-          console.log('🎥 No local stream, getting one for incoming call...');
-          try {
-            this.localStream = await this.getLocalStream();
-            console.log('✅ Successfully got local stream for incoming call');
-          } catch (err) {
-            console.error('❌ Could not get local stream for incoming call:', err);
-            
-            // For mobile, try to get at least audio
-            if (isMobile) {
-              console.log('🔄 Trying audio-only fallback for mobile...');
-              try {
-                this.localStream = await navigator.mediaDevices.getUserMedia({
-                  video: false,
-                  audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true,
-                    sampleRate: 8000,
-                    channelCount: 1
-                  }
-                });
-                console.log('✅ Got audio-only stream for mobile fallback');
-              } catch (audioErr) {
-                console.error('❌ Audio-only fallback also failed:', audioErr);
-                return;
-              }
-            } else {
-              return;
-            }
-          }
-        }
-        
-        // Verify the local stream has tracks
-        if (this.localStream) {
-          const videoTracks = this.localStream.getVideoTracks();
-          const audioTracks = this.localStream.getAudioTracks();
-          console.log(`📊 Local stream tracks - Video: ${videoTracks.length}, Audio: ${audioTracks.length}`);
-          
-          if (videoTracks.length > 0) {
-            console.log('📹 Video track info:', {
-              enabled: videoTracks[0].enabled,
-              readyState: videoTracks[0].readyState,
-              id: videoTracks[0].id
-            });
-          }
-          
-          if (audioTracks.length > 0) {
-            console.log('🎤 Audio track info:', {
-              enabled: audioTracks[0].enabled,
-              readyState: audioTracks[0].readyState,
-              id: audioTracks[0].id
-            });
-          }
-        }
-        
-        console.log('📱 Answering incoming call...');
-        console.log('📤 Sending local stream to peer...');
-        
-        // Answer the call with our local stream
-        call.answer(this.localStream);
-        console.log('✅ Call answered successfully');
-        
-        // Set up call event handlers
-        call.on('stream', (remoteStream) => {
-          console.log('🎉 ===== REMOTE STREAM RECEIVED =====');
-          console.log('📊 Remote stream info:', {
-            id: remoteStream.id,
-            active: remoteStream.active,
-            videoTracks: remoteStream.getVideoTracks().length,
-            audioTracks: remoteStream.getAudioTracks().length
-          });
-          
-          // Log remote track details
-          remoteStream.getVideoTracks().forEach((track, index) => {
-            console.log(`📹 Remote video track ${index}:`, {
-              enabled: track.enabled,
-              readyState: track.readyState,
-              id: track.id
-            });
-          });
-          
-          remoteStream.getAudioTracks().forEach((track, index) => {
-            console.log(`🎤 Remote audio track ${index}:`, {
-              enabled: track.enabled,
-              readyState: track.readyState,
-              id: track.id
-            });
-          });
-          
-          console.log('✅ Calling callback with remote stream');
-          callback(remoteStream);
-        });
-        
-        call.on('error', (error) => {
-          console.error('❌ ===== CALL ERROR =====');
-          console.error('🚨 Error details:', error);
-          
-          // Mobile-specific error handling
-          if (isMobile) {
-            console.error('📱 Mobile: Call error detected');
-          }
-        });
-        
-        call.on('close', () => {
-          console.log('📞 ===== CALL CLOSED =====');
-          console.log('🔄 Call connection ended');
-        });
-        
-        // Use the correct PeerJS event names
-        call.on('iceStateChanged', (state) => {
-          console.log('🧊 ICE state changed:', state);
-        });
-        
-        // Log peer connection details for debugging
-        if (call.peerConnection) {
-          console.log('🔗 Peer connection details:', {
-            iceConnectionState: call.peerConnection.iceConnectionState,
-            iceGatheringState: call.peerConnection.iceGatheringState,
-            connectionState: call.peerConnection.connectionState,
-            signalingState: call.peerConnection.signalingState
-          });
-        }
-        
+        connection.peer.signal(signalData)
       } catch (error) {
-        console.error('❌ ===== ERROR IN INCOMING CALL HANDLER =====');
-        console.error('🚨 Error:', error);
+        console.error('❌ Error signaling peer:', error)
+      }
+    } else {
+      // Store all signals for when connection is created
+      console.log(`📡 Storing signal for future connection: ${fromPeerId}`)
+      if (!this.pendingSignals.has(fromPeerId)) {
+        this.pendingSignals.set(fromPeerId, [])
+      }
+      this.pendingSignals.get(fromPeerId)!.push(signalData)
+      
+      // If it's an offer, notify the app about the incoming call attempt
+      if (signalData.type === 'offer' && this.onIncomingOfferCallback) {
+        console.log(`📞 Notifying app about incoming offer from: ${fromPeerId}`)
+        this.onIncomingOfferCallback(fromPeerId, signalData)
+      }
+    }
+  }
+
+  private setupPeerEventHandlers(peer: SimplePeer.Instance, peerId: string, isInitiator: boolean) {
+    peer.on('connect', () => {
+      console.log(`🔗 Connected to peer: ${peerId}`)
+      
+      // Check if we already have a remote stream for this connection
+      const connection = this.connections.get(peerId)
+      if (connection && connection.remoteStream) {
+        console.log(`📹 Connection established, remote stream already available for: ${peerId}`)
         
-        // Try to recover by restarting the connection
-        if (isMobile) {
-          console.log('🔄 Mobile device: Attempting to recover from error...');
-          try {
-            await this.restartConnection();
-            console.log('✅ Mobile recovery completed');
-          } catch (recoveryError) {
-            console.error('❌ Mobile recovery failed:', recoveryError);
-          }
+        // Re-trigger the callback to ensure UI is updated
+        if (this.onIncomingCallCallback) {
+          this.onIncomingCallCallback(peerId, connection.remoteStream)
         }
       }
-    });
-    
-    console.log('✅ Incoming call handler set up successfully');
-  }
+    })
 
-  async initiateCallToPeer(remotePeerId: string): Promise<MediaStream> {
-    if (!this.peer || !this.localStream) {
-      throw new Error('Peer not initialized or no local stream')
-    }
-    
-    console.log(`📞 Initiating call to ${remotePeerId}...`);
-    
-    return new Promise((resolve, reject) => {
-      const call = this.peer!.call(remotePeerId, this.localStream!);
+    peer.on('stream', (remoteStream: MediaStream) => {
+      console.log(`🎉 Received stream from peer: ${peerId}`, {
+        videoTracks: remoteStream.getVideoTracks().length,
+        audioTracks: remoteStream.getAudioTracks().length,
+        streamId: remoteStream.id
+      })
       
-      call.on('stream', (remoteStream) => {
-        console.log('✅ Received remote stream from outgoing call');
-        resolve(remoteStream);
-      });
+      // CRITICAL: Verify it's not our own local stream
+      if (this.localStream && remoteStream.id === this.localStream.id) {
+        console.error('❌ Received local stream instead of remote! Ignoring...', {
+          localStreamId: this.localStream.id,
+          remoteStreamId: remoteStream.id
+        })
+        return
+      }
       
-      call.on('error', (error) => {
-        console.error('❌ Outgoing call error:', error);
-        reject(error);
-      });
+      // Additional check: compare track IDs to be extra sure
+      const localVideoTrackIds = this.localStream?.getVideoTracks().map(t => t.id) || []
+      const remoteVideoTrackIds = remoteStream.getVideoTracks().map(t => t.id)
+      const hasMatchingTracks = localVideoTrackIds.some(id => remoteVideoTrackIds.includes(id))
       
-      call.on('close', () => {
-        console.log('📞 Outgoing call closed');
-      });
+      if (hasMatchingTracks) {
+        console.error('❌ Remote stream has matching track IDs with local stream! Ignoring...', {
+          localVideoTrackIds,
+          remoteVideoTrackIds
+        })
+        return
+      }
       
+      // Log and fix track states
+      remoteStream.getVideoTracks().forEach((track, index) => {
+        console.log(`📹 Video track ${index}:`, {
+          id: track.id,
+          kind: track.kind,
+          enabled: track.enabled,
+          readyState: track.readyState,
+          muted: track.muted
+        })
+        
+        // Force enable tracks if they're disabled
+        if (!track.enabled) {
+          console.log(`🔧 Enabling disabled video track ${index}`)
+          track.enabled = true
+        }
+      })
+      
+      remoteStream.getAudioTracks().forEach((track, index) => {
+        console.log(`🎤 Audio track ${index}:`, {
+          id: track.id,
+          kind: track.kind,
+          enabled: track.enabled,
+          readyState: track.readyState,
+          muted: track.muted
+        })
+        
+        // Force enable tracks if they're disabled
+        if (!track.enabled) {
+          console.log(`🔧 Enabling disabled audio track ${index}`)
+          track.enabled = true
+        }
+      })
+      
+      const connection = this.connections.get(peerId)
+      if (connection) {
+        connection.remoteStream = remoteStream
+      }
+
+      // Wait a bit for stream to be fully ready, then trigger callback
       setTimeout(() => {
-        console.error('⏰ Call connection timeout');
-        reject(new Error('Call connection timeout'));
-      }, 20000); // Increased timeout for mobile
-    });
-  }
+        if (this.onIncomingCallCallback) {
+          console.log(`📞 Triggering incoming call callback for peer: ${peerId} (delayed)`)
+          this.onIncomingCallCallback(peerId, remoteStream)
+        } else {
+          console.warn(`⚠️ No incoming call callback set for peer: ${peerId}`)
+        }
+      }, 200) // 200ms delay to ensure stream is ready
+    })
 
-  // Add method to check if user has granted permissions
-  async checkPermissions(): Promise<{video: boolean, audio: boolean}> {
-    try {
-      const permissions = await Promise.all([
-        navigator.permissions.query({name: 'camera' as PermissionName}),
-        navigator.permissions.query({name: 'microphone' as PermissionName})
-      ]);
+    peer.on('signal', (signalData: any) => {
+      console.log(`📡 Signal from peer: ${peerId}`, signalData.type)
+      this.handleOutgoingSignal(peerId, signalData)
+    })
+
+    peer.on('iceStateChange', (state: string) => {
+      console.log(`🧊 ICE state for peer ${peerId}:`, state)
+    })
+
+    peer.on('close', () => {
+      console.log(`🔌 Connection closed with peer: ${peerId}`)
+      this.connections.delete(peerId)
       
-      return {
-        video: permissions[0].state === 'granted',
-        audio: permissions[1].state === 'granted'
-      };
-    } catch (error) {
-      console.warn('Could not check permissions:', error);
-      return {video: false, audio: false};
-    }
-  }
+      // Emit custom event for call provider to handle
+      if (typeof window !== 'undefined') {
+        const event = new CustomEvent('peerDisconnected', {
+          detail: { peerId, reason: 'connection_closed' }
+        })
+        window.dispatchEvent(event)
+      }
+    })
 
-  // Add method to request permissions explicitly
-  async requestPermissions(): Promise<boolean> {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true
-      });
+    peer.on('error', (error: Error) => {
+      console.error(`❌ Error with peer ${peerId}:`, error)
       
-      // Stop the stream immediately - we just wanted to trigger permission request
-      stream.getTracks().forEach(track => track.stop());
-      return true;
-    } catch (error) {
-      console.error('Permission request failed:', error);
-      return false;
+      // Emit custom event for serious errors
+      if (typeof window !== 'undefined') {
+        const event = new CustomEvent('peerError', {
+          detail: { peerId, error: error.message }
+        })
+        window.dispatchEvent(event)
+      }
+    })
+  }
+
+  // Updated signal handling
+  private handleOutgoingSignal(peerId: string, signalData: any) {
+    console.log(`📡 Outgoing signal to peer: ${peerId}`, signalData.type)
+    
+    if (this.onSignalCallback) {
+      this.onSignalCallback(peerId, signalData)
+    } else {
+      // Fallback to custom event
+      if (typeof window !== 'undefined') {
+        const event = new CustomEvent('peerSignal', {
+          detail: { to: peerId, signal: signalData, from: this.myPeerId }
+        })
+        window.dispatchEvent(event)
+      }
     }
   }
 
-  // Add method to check connection health for mobile
-  async checkConnectionHealth(): Promise<{status: string, details: any}> {
-    try {
-      if (!this.peer) {
-        return { status: 'disconnected', details: 'Peer not initialized' };
-      }
+  onIncomingCall(callback: (peerId: string, remoteStream: MediaStream) => void) {
+    this.onIncomingCallCallback = callback
+    console.log('🎯 Incoming call callback set')
+  }
 
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      
-      // Check if peer is connected
-      if (!this.peer.open) {
-        return { status: 'connecting', details: 'Peer connection in progress' };
-      }
+  // New method to handle incoming call offers
+  private onIncomingOfferCallback?: (peerId: string, offer?: any) => void
 
-      // Check local stream health
-      if (!this.localStream) {
-        return { status: 'no_stream', details: 'No local media stream' };
-      }
+  onIncomingOffer(callback: (peerId: string, offer?: any) => void) {
+    this.onIncomingOfferCallback = callback
+    console.log('🎯 Incoming offer callback set')
+  }
 
-      const videoTrack = this.localStream.getVideoTracks()[0];
-      const audioTrack = this.localStream.getAudioTracks()[0];
+  // Check if there's a pending offer from a peer
+  hasPendingOffer(peerId: string): boolean {
+    const signals = this.pendingSignals.get(peerId) || []
+    return signals.some(signal => signal.type === 'offer')
+  }
 
-      const health = {
-        peerConnected: this.peer.open,
-        hasVideo: !!videoTrack,
-        hasAudio: !!audioTrack,
-        videoEnabled: videoTrack?.enabled || false,
-        audioEnabled: audioTrack?.enabled || false,
-        deviceType: isMobile ? 'mobile' : 'desktop'
-      };
+  // Helper method to display remote stream
+  displayRemoteStream(peerId: string, videoElement: HTMLVideoElement): boolean {
+    const connection = this.connections.get(peerId)
+    if (connection && connection.remoteStream) {
+      console.log(`📺 Displaying remote stream for peer: ${peerId}`)
+      videoElement.srcObject = connection.remoteStream
+      videoElement.play().catch(error => {
+        console.error('❌ Error playing video:', error)
+      })
+      return true
+    }
+    console.warn(`❌ No remote stream available for peer: ${peerId}`)
+    return false
+  }
 
-      if (health.peerConnected && (health.hasVideo || health.hasAudio)) {
-        return { status: 'healthy', details: health };
-      } else if (health.peerConnected) {
-        return { status: 'partial', details: health };
-      } else {
-        return { status: 'unhealthy', details: health };
-      }
-    } catch (error) {
-      return { status: 'error', details: error };
+  // Get remote stream directly
+  getRemoteStream(peerId: string): MediaStream | null {
+    const connection = this.connections.get(peerId)
+    return connection?.remoteStream || null
+  }
+
+  // Debug method to check stream states
+  debugStreams(): void {
+    console.log('🔍 Stream Debug Info:')
+    console.log('- Local stream:', this.localStream ? {
+      id: this.localStream.id,
+      videoTracks: this.localStream.getVideoTracks().length,
+      audioTracks: this.localStream.getAudioTracks().length,
+      videoEnabled: this.localStream.getVideoTracks().map(t => t.enabled),
+      audioEnabled: this.localStream.getAudioTracks().map(t => t.enabled)
+    } : 'None')
+    
+    console.log('- Connections:', this.connections.size)
+    this.connections.forEach((connection, peerId) => {
+      console.log(`  ${peerId}:`, {
+        connected: connection.peer.connected,
+        hasRemoteStream: !!connection.remoteStream,
+        remoteStreamId: connection.remoteStream?.id,
+        remoteVideoTracks: connection.remoteStream?.getVideoTracks().length || 0,
+        remoteAudioTracks: connection.remoteStream?.getAudioTracks().length || 0
+      })
+    })
+  }
+
+  getConnectionStatus(peerId: string): { connected: boolean, hasStream: boolean } {
+    const connection = this.connections.get(peerId)
+    if (!connection) {
+      return { connected: false, hasStream: false }
+    }
+
+    return {
+      connected: connection.peer.connected,
+      hasStream: !!connection.remoteStream
     }
   }
 
-  // Add method to restart connection for mobile issues
-  async restartConnection(): Promise<void> {
-    console.log('🔄 Restarting peer connection...');
-    
-    if (this.peer) {
-      this.peer.destroy();
-      this.peer = null;
-    }
-    
-    if (this.localStream) {
-      this.localStream.getTracks().forEach(track => track.stop());
-      this.localStream = null;
-    }
-    
-    this.incomingCallHandlerSet = false;
-    
-    // Wait a bit before reconnecting
-    await new Promise(resolve => setTimeout(resolve, 1000));
+  getActiveConnections(): string[] {
+    return Array.from(this.connections.keys()).filter(peerId => {
+      const connection = this.connections.get(peerId)
+      return connection && connection.peer.connected
+    })
   }
 
-  // Add method to handle mobile-specific media constraints
   async updateMediaConstraints(isVideoEnabled: boolean, isAudioEnabled: boolean): Promise<void> {
     try {
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      
       if (this.localStream) {
-        // Update video track
-        const videoTrack = this.localStream.getVideoTracks()[0];
-        if (videoTrack) {
-          videoTrack.enabled = isVideoEnabled;
-          console.log(`📹 Video ${isVideoEnabled ? 'enabled' : 'disabled'}`);
-        }
+        const videoTrack = this.localStream.getVideoTracks()[0]
+        if (videoTrack) videoTrack.enabled = isVideoEnabled
         
-        // Update audio track
-        const audioTrack = this.localStream.getAudioTracks()[0];
-        if (audioTrack) {
-          audioTrack.enabled = isAudioEnabled;
-          console.log(`🎤 Audio ${isAudioEnabled ? 'enabled' : 'disabled'}`);
-        }
+        const audioTrack = this.localStream.getAudioTracks()[0]
+        if (audioTrack) audioTrack.enabled = isAudioEnabled
         
-        // For mobile, we might need to adjust quality dynamically
-        if (isMobile && videoTrack && isVideoEnabled) {
-          try {
-            await videoTrack.applyConstraints({
-              width: { ideal: 320, max: 640 },
-              height: { ideal: 240, max: 480 },
-              frameRate: { ideal: 10, max: 15 }
-            });
-            console.log('📱 Applied mobile-optimized video constraints');
-          } catch (error) {
-            console.warn('⚠️ Could not apply mobile constraints:', error);
-          }
-        }
+        console.log(`📹 Video: ${isVideoEnabled}, 🎤 Audio: ${isAudioEnabled}`)
       }
     } catch (error) {
-      console.error('❌ Error updating media constraints:', error);
+      console.error('❌ Error updating media constraints:', error)
     }
   }
 
-  // Add simple test method for debugging
-  async testMobileConnection(): Promise<string> {
-    try {
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-      const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
-      
-      console.log('🧪 Testing mobile connection...');
-      console.log(`📱 Device: ${isMobile ? 'Mobile' : 'Desktop'}`);
-      console.log(`🍎 iOS: ${isIOS}`);
-      console.log(`🌐 Safari: ${isSafari}`);
-      
-      // Check permissions
-      const permissions = await this.checkPermissions();
-      console.log('🔐 Permissions:', permissions);
-      
-      // Check if peer is connected
-      if (this.peer) {
-        console.log('🔗 Peer status:', {
-          open: this.peer.open,
-          id: this.peer.id,
-          destroyed: this.peer.destroyed
-        });
-      } else {
-        console.log('❌ Peer not initialized');
-      }
-      
-      // Check local stream
-      if (this.localStream) {
-        const videoTracks = this.localStream.getVideoTracks();
-        const audioTracks = this.localStream.getAudioTracks();
-        console.log('📊 Local stream:', {
-          videoTracks: videoTracks.length,
-          audioTracks: audioTracks.length,
-          active: this.localStream.active
-        });
-      } else {
-        console.log('❌ No local stream');
-      }
-      
-      return `Mobile test completed. Device: ${isMobile ? 'Mobile' : 'Desktop'}, iOS: ${isIOS}, Safari: ${isSafari}`;
-      
-    } catch (error) {
-      console.error('❌ Mobile connection test failed:', error);
-      return `Test failed: ${error}`;
+  disconnectFromPeer(peerId: string): void {
+    const connection = this.connections.get(peerId)
+    if (connection) {
+      connection.peer.destroy()
+      this.connections.delete(peerId)
+      console.log(`🔌 Disconnected from peer: ${peerId}`)
     }
   }
 
-  disconnect() {
+  disconnect(): void {
+    console.log('🛑 Disconnecting all peers...')
+    
+    this.connections.forEach((connection) => {
+      connection.peer.destroy()
+    })
+    
+    this.connections.clear()
+    this.pendingSignals.clear()
+    
     if (this.localStream) {
-      this.localStream.getTracks().forEach(track => {
-        track.stop();
-        console.log(`🛑 Stopped ${track.kind} track`);
-      });
-      this.localStream = null;
+      this.localStream.getTracks().forEach(track => track.stop())
+      this.localStream = null
     }
-    if (this.peer) {
-      this.peer.destroy();
-      this.peer = null;
-    }
+    
+    this.isInitialized = false
+    console.log('✅ All connections disconnected')
   }
 }
 
-export const peerClient = new PeerClient()
+// Create singleton instance - but only in browser
+let peerClientInstance: PeerClient | null = null
+
+export const getPeerClient = (customPeerId?: string): PeerClient => {
+  if (!peerClientInstance) {
+    peerClientInstance = new PeerClient(customPeerId)
+  }
+  return peerClientInstance
+}
+
+// Reset the singleton (useful for testing or when user changes)
+export const resetPeerClient = (): void => {
+  if (peerClientInstance) {
+    peerClientInstance.disconnect()
+  }
+  peerClientInstance = null
+}

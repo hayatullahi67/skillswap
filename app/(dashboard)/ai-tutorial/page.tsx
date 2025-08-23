@@ -122,8 +122,8 @@ export default function AITutorialPage() {
   const { user, userSkills } = useAppStore()
   const { modalState, showSuccess, showError, closeModal } = useModal()
 
-  const skillFromUrl = searchParams.get('skill')
-  const fallback = searchParams.get('fallback')
+  const skillFromUrl = searchParams?.get('skill')
+  const fallback = searchParams?.get('fallback')
   const learnSkills = userSkills.filter(skill => skill.skill_type === 'learn')
 
   // Auto-scroll to bottom of messages

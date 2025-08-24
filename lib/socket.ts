@@ -10,6 +10,13 @@ export function getSocket() {
     const isProduction = process.env.NODE_ENV === 'production';
     const socketUrl = isProduction ? window.location.origin : 'http://localhost:3000';
     
+    console.log('🔍 Socket connection details:', {
+      isProduction,
+      socketUrl,
+      currentOrigin: window.location.origin,
+      nodeEnv: process.env.NODE_ENV
+    });
+    
     // Mobile-friendly configuration
     socket = io(socketUrl, {
       path: "/api/socket",

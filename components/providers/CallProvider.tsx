@@ -6,7 +6,8 @@ import { supabase } from '@/lib/supabaseClient'
 import { IncomingCallOverlay } from '@/components/ui/incoming-call-overlay'
 import { useModal } from '@/hooks/useModal'
 import { getPeerClient } from '@/lib/peerClient'
-import { SocketSignaling } from '@/lib/socketSignaling'
+import { initSupabaseSignaling } from '@/lib/simpleSignaling'
+import { SupabaseSignaling } from '@/lib/supabaseSignaling'
 import { Video, VideoOff, Mic, MicOff, PhoneOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -56,7 +57,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
   // Initialize peer client and signaling
   const peerClient = getPeerClient()
-  const [globalSignaling] = useState(() => new SocketSignaling(peerClient))
+  const [globalSignaling, setGlobalSignaling] = useState<any>(null)
 
   // Initialize ring sound using Web Audio API
   useEffect(() => {
@@ -146,26 +147,11 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           // Socket signaling handles this automatically
         })
 
-        // Initialize signaling
-        globalSignaling.initialize()
-        console.log('✅ Socket signaling initialized globally')
+        // Initialize Supabase signaling (will be set per session)
+        console.log('✅ Peer client ready for Supabase signaling')
 
-        // Set up global call-ended listener
-        globalSignaling.socket.on("call-ended", async ({ from, sessionId }) => {
-          console.log('📞 Received call-ended signal from:', from, 'for session:', sessionId)
-          
-          if (currentSession && currentSession.id === sessionId) {
-            console.log('📞 Call ended by other party via Socket.IO')
-            await cleanupCall('The other party ended the call')
-          }
-        })
-
-        // Force Socket.IO server initialization by making a request
-        fetch('/api/socket').then(() => {
-          console.log('✅ Socket.IO server endpoint accessed')
-        }).catch(err => {
-          console.error('❌ Failed to access Socket.IO server:', err)
-        })
+        // Supabase signaling doesn't need server initialization
+        console.log('✅ Ready for Supabase realtime signaling')
 
         // Set up peer disconnection listeners
         const handlePeerDisconnected = async (event: any) => {
@@ -196,10 +182,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         window.addEventListener('peerDisconnected', handlePeerDisconnected)
         window.addEventListener('peerError', handlePeerError)
 
-        // Test Socket.IO connection
-        setTimeout(() => {
-          globalSignaling.testConnection()
-        }, 3000)
+        // Supabase connection is handled automatically
+        console.log('✅ Supabase signaling ready')
 
         // Cleanup function for peer event listeners
         return () => {
@@ -349,17 +333,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           })
           .eq('id', currentSession.id)
 
-        // Send end call signal
+        // Send end call signal via Supabase
         if (sessionPeerClient && globalSignaling) {
           const otherPeerId = currentSession.learner_id === user?.id 
             ? `${currentSession.host_id}-session-${currentSession.id}`
             : `${currentSession.learner_id}-session-${currentSession.id}`
           
-          globalSignaling.socket.emit("call-ended", {
-            to: otherPeerId,
-            from: sessionPeerClient.getMyPeerId(),
-            sessionId: currentSession.id
-          })
+          await globalSignaling.sendCallEnded(otherPeerId)
         }
 
         event.preventDefault()
@@ -539,10 +519,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       await newSessionPeerClient.initialize()
       console.log('✅ Session peer client initialized with ID:', newSessionPeerClient.getMyPeerId())
 
-      // Set up signaling for the new peer client
-      const { SocketSignaling } = await import('@/lib/socketSignaling')
-      const sessionSignaling = new SocketSignaling(newSessionPeerClient)
-      sessionSignaling.initialize()
+      // Set up Supabase signaling for the new peer client
+      const sessionSignaling = initSupabaseSignaling(parseInt(sessionId), myPeerId)
+      setGlobalSignaling(sessionSignaling)
 
       // Set up incoming call handler for the new peer client
       newSessionPeerClient.onIncomingCall((peerId, remoteStream) => {
@@ -592,17 +571,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         }
       })
 
-      // Set up signaling for the new peer client - CRITICAL FIX
-      newSessionPeerClient.onSignal((peerId, signalData) => {
-        console.log('📡 SESSION: Outgoing signal to peer:', peerId, 'type:', signalData.type)
-        // Manually send signal through session signaling
-        sessionSignaling.socket.emit("signal", {
-          to: peerId,
-          from: newSessionPeerClient.getMyPeerId(),
-          data: signalData,
-        })
-        console.log('📡 SESSION: Signal sent via Socket.IO')
-      })
+      // Supabase signaling handles outgoing signals automatically
+      console.log('✅ Supabase signaling connected to peer client')
 
       // Get fresh local stream for the new peer client
       const sessionStream = await newSessionPeerClient.getLocalStream()
@@ -623,7 +593,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         setTimeout(async () => {
           try {
             console.log('📞 Calling teacher with ID:', remotePeerId)
-            await sessionSignaling.callPeer(remotePeerId)
+            await newSessionPeerClient.createConnection(remotePeerId)
             console.log('✅ Connected to teacher!')
           } catch (callError) {
             console.error('Failed to connect to teacher:', callError)
@@ -632,7 +602,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
             // Retry connection after a delay
             setTimeout(async () => {
               try {
-                await sessionSignaling.callPeer(remotePeerId)
+                await newSessionPeerClient.createConnection(remotePeerId)
                 showInfo('Connected!', 'Video connection established')
               } catch (retryError) {
                 console.error('Retry failed:', retryError)
@@ -677,18 +647,14 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           console.log('✅ Call ended successfully in database')
         }
 
-        // Send end call signal to other peer via Socket.IO
+        // Send end call signal to other peer via Supabase
         if (sessionPeerClient && globalSignaling) {
           const otherPeerId = currentSession.learner_id === user?.id 
             ? `${currentSession.host_id}-session-${currentSession.id}`
             : `${currentSession.learner_id}-session-${currentSession.id}`
           
           console.log('📡 Sending call end signal to:', otherPeerId)
-          globalSignaling.socket.emit("call-ended", {
-            to: otherPeerId,
-            from: sessionPeerClient.getMyPeerId(),
-            sessionId: currentSession.id
-          })
+          await globalSignaling.sendCallEnded(otherPeerId)
         }
       }
 
@@ -805,14 +771,15 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       const win = window as any
       win.debugCallProvider = debugStreams
       win.debugSignaling = async () => {
-        if (sessionPeerClient) {
-          console.log('Socket signaling debug - check browser network tab for WebSocket connections')
+        if (globalSignaling) {
+          console.log('Supabase signaling status:', globalSignaling.isConnected())
+          console.log('Session info:', globalSignaling.getSessionInfo())
         } else {
-          console.log('No session peer client available')
+          console.log('No Supabase signaling available')
         }
       }
     }
-  }, [localStream, remoteStream, sessionPeerClient])
+  }, [localStream, remoteStream, sessionPeerClient, globalSignaling])
 
   const startOutgoingCall = async (sessionId: string, sessionData: any) => {
     try {

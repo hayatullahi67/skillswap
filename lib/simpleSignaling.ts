@@ -1,40 +1,39 @@
-// lib/signaling.ts
-import { io, Socket } from "socket.io-client";
-import { getPeerClient } from "./peerClient";
+// Simple Realtime signaling for WebRTC (no database tables needed)
+import { RealtimeSignaling } from './realtimeSignaling'
+import { getPeerClient } from './peerClient'
 
-let socket: Socket | null = null;
+export const initSupabaseSignaling = (sessionId: number, myPeerId: string) => {
+  console.log('🚀 Initializing Realtime signaling...', { sessionId, myPeerId })
+  
+  const peerClient = getPeerClient(myPeerId)
+  const signaling = new RealtimeSignaling(myPeerId)
 
-export const initSignaling = (serverUrl: string, roomId: string, myPeerId: string) => {
-  if (socket) return socket; // prevent multiple init
+  // Initialize signaling
+  signaling.initialize(sessionId)
 
-  socket = io(serverUrl, {
-    transports: ["websocket"],
-  });
+  // Handle incoming signals from Realtime
+  signaling.onSignal((message) => {
+    console.log('📡 Received signal from Realtime:', message)
+    peerClient.handleIncomingSignal(message.from, message.signal.data)
+  })
 
-  const peerClient = getPeerClient(myPeerId);
-
-  socket.on("connect", () => {
-    console.log("🔗 Connected to signaling server:", socket?.id);
-    socket?.emit("join-room", { roomId, peerId: myPeerId });
-  });
-
-  // Incoming signal from another peer
-  socket.on("signal", ({ from, data }) => {
-    console.log("📡 Incoming signal from:", from, data.type);
-    peerClient.handleIncomingSignal(from, data);
-  });
-
-  // When a new user joins, create connection
-  socket.on("user-joined", ({ peerId }) => {
-    console.log("👋 New peer joined:", peerId);
-    peerClient.createConnection(peerId);
-  });
-
-  // Outgoing signals → send via socket
+  // Handle outgoing signals from peer client
   peerClient.onSignal((to, signalData) => {
-    console.log("📡 Sending signal to:", to, signalData.type);
-    socket?.emit("signal", { to, from: myPeerId, roomId, data: signalData });
-  });
+    console.log('📡 Sending signal via Realtime:', { to, type: signalData.type })
+    signaling.sendSignal(to, {
+      type: signalData.type as any,
+      data: signalData
+    }).catch(error => {
+      console.error('❌ Failed to send signal:', error)
+    })
+  })
 
-  return socket;
-};
+  return signaling
+}
+
+// Legacy function for backward compatibility
+export const initSignaling = (_serverUrl: string, _roomId: string, myPeerId: string) => {
+  console.warn('⚠️ initSignaling is deprecated, use initSupabaseSignaling instead')
+  // For now, use session ID 1 as fallback
+  return initSupabaseSignaling(1, myPeerId)
+}

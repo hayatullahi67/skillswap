@@ -58,7 +58,7 @@ export class SocketSignaling {
       // Handle incoming signals
       this.socket.on('signal', ({ from, data }) => {
         console.log('� Recerived signal via Socket.IO:', { from, type: data.type || 'unknown' })
-        
+
         if (this.onSignalCallback) {
           this.onSignalCallback(from, data)
         }
@@ -67,7 +67,7 @@ export class SocketSignaling {
       // Handle call end signals
       this.socket.on('call-ended', ({ from }) => {
         console.log('📞 Received call-ended via Socket.IO from:', from)
-        
+
         if (this.onCallEndCallback) {
           this.onCallEndCallback(from)
         }
@@ -89,10 +89,10 @@ export class SocketSignaling {
       return
     }
 
-    console.log('📡 Sending signal via Socket.IO:', { 
-      from: this.myPeerId, 
-      to, 
-      type: data.type || 'unknown' 
+    console.log('📡 Sending signal via Socket.IO:', {
+      from: this.myPeerId,
+      to,
+      type: data.type || 'unknown'
     })
 
     this.socket.emit('signal', {
@@ -117,6 +117,8 @@ export class SocketSignaling {
       sessionId: sessionId
     })
   }
+
+
 
   // Set callback for incoming signals
   onSignal(callback: (from: string, data: any) => void): void {
@@ -145,12 +147,12 @@ export class SocketSignaling {
   // Disconnect
   disconnect(): void {
     console.log('�  Disconnecting Socket.IO signaling')
-    
+
     if (this.socket) {
       this.socket.disconnect()
       this.socket = null
     }
-    
+
     this.isConnected = false
     this.onSignalCallback = undefined
     this.onCallEndCallback = undefined

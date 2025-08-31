@@ -442,6 +442,8 @@ export class SimplePeerClient {
     return health
   }
 
+
+
   disconnect(): void {
     console.log('🛑 Disconnecting all peers...')
     

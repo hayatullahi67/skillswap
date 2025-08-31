@@ -116,10 +116,12 @@ export default function CollaborativeCoding({
     // Track when both peers are ready for voice
     const [peerVoiceStatus, setPeerVoiceStatus] = useState<{
         teacherReady: boolean,
-        learnerReady: boolean
+        learnerReady: boolean,
+        remoteSocketConnected: boolean
     }>({
         teacherReady: false,
-        learnerReady: false
+        learnerReady: false,
+        remoteSocketConnected: false
     })
 
     const { user } = useAppStore()
@@ -442,37 +444,67 @@ export default function CollaborativeCoding({
             
             if (shouldInitiate) {
                 console.log('🔗 I will initiate the voice connection (smaller user ID)')
+                console.log('⏳ Waiting for remote peer to be ready before connecting...')
                 
+                // Don't connect immediately - wait for remote peer to be ready
+                // The connection will be triggered in handleRemoteVoiceReady when remote peer is ready
+                
+                // Add fallback mechanism in case remote peer ready signal is missed
                 setTimeout(async () => {
-                    try {
-                        console.log('🔗 Creating connection to peer:', remotePeerId)
-                        await peerClientRef.current.createConnection(remotePeerId)
-                        setVoiceCall(prev => ({ ...prev, isConnected: true }))
-                        console.log('✅ Voice connection established as initiator')
+                    // Get fresh state values to avoid stale closure
+                    const currentStream = peerClientRef.current?.getLocalStream()
+                    const hasCurrentStream = !!currentStream
+                    
+                    console.log('⏰ Fallback check:', {
+                        isConnected: voiceCall.isConnected,
+                        hasPeerClient: !!peerClientRef.current,
+                        hasLocalStream: hasCurrentStream,
+                        willAttempt: !voiceCall.isConnected && peerClientRef.current && hasCurrentStream
+                    })
+                    
+                    // Only attempt fallback if still not connected and peer client is ready
+                    if (!voiceCall.isConnected && peerClientRef.current && hasCurrentStream) {
+                        console.log('⏰ Fallback: Attempting connection after 3 seconds...')
+                        
+                        try {
+                            const remotePeerId = isTeacher 
+                                ? `${learnerId}-voice-${sessionId}`
+                                : `${mentorId}-voice-${sessionId}`
+                            
+                            await peerClientRef.current.createConnection(remotePeerId)
+                            setVoiceCall(prev => ({ ...prev, isConnected: true }))
+                            console.log('✅ Voice connection established via fallback')
 
-                        addChatMessage({
-                            content: '🎤 Voice chat connected! You can now talk to your partner.',
-                            sender: 'ai',
-                            senderName: 'System',
-                            type: 'message'
-                        })
-                    } catch (connectionError) {
-                        console.error('❌ Failed to establish voice connection:', connectionError)
-
-                        addChatMessage({
-                            content: '⚠️ Voice connection failed. Please try again.',
-                            sender: 'ai',
-                            senderName: 'System',
-                            type: 'message'
-                        })
+                            addChatMessage({
+                                content: '🎤 Voice chat connected! You can now talk to your partner.',
+                                sender: 'ai',
+                                senderName: 'System',
+                                type: 'message'
+                            })
+                        } catch (error) {
+                            console.error('❌ Fallback connection failed:', error)
+                            
+                            addChatMessage({
+                                content: '⚠️ Voice connection failed. Please try refreshing the page.',
+                                sender: 'ai',
+                                senderName: 'System',
+                                type: 'message'
+                            })
+                        }
                     }
-                }, 2000)
+                }, 3000) // 3 second fallback - more aggressive
+                
+                addChatMessage({
+                    content: '🎤 Voice chat ready! Connection will happen automatically when your partner joins.',
+                    sender: 'ai',
+                    senderName: 'System',
+                    type: 'message'
+                })
             } else {
                 console.log('👂 I will wait for incoming voice connection (larger user ID)')
-                setVoiceCall(prev => ({ ...prev, isConnected: true }))
-
+                
                 addChatMessage({
-                    content: '🎤 Voice chat ready! Waiting for your partner to connect...',
+                    content: '🎤 Voice chat ready! Connection will happen automatically when your partner joins.',
                     sender: 'ai',
                     senderName: 'System',
                     type: 'message'
@@ -480,6 +512,9 @@ export default function CollaborativeCoding({
             }
 
             console.log('✅ Voice call started successfully with fresh permissions')
+            
+            // Ensure isInitiating is cleared
+            setVoiceCall(prev => ({ ...prev, isInitiating: false }))
 
         } catch (error) {
             console.error('❌ Failed to start voice call:', error)
@@ -584,19 +619,18 @@ export default function CollaborativeCoding({
             }
         }
 
-        // If voice call not started yet, start it first
-        if (!voiceCall.isConnected && !voiceCall.isInitiating) {
+        // Voice chat starts automatically, this button is only for mute/unmute
+        if (!voiceCall.localStream) {
             addChatMessage({
-                content: '🎤 Starting voice chat to connect with your coding partner...',
+                content: '🎤 Voice chat is starting automatically. Please wait a moment...',
                 sender: 'ai',
                 senderName: 'System',
                 type: 'message'
             })
-            await startVoiceCall()
             return
         }
 
-        // If voice call is active, toggle mute
+        // Toggle mute/unmute
         if (voiceCall.localStream) {
             const audioTrack = voiceCall.localStream.getAudioTracks()[0]
             if (audioTrack) {
@@ -769,7 +803,7 @@ export default function CollaborativeCoding({
         // Initial AI greeting and auto-start voice
         setTimeout(() => {
             addChatMessage({
-                content: `Hi! I'm your AI coding mentor. I'll help both of you as you code together. 🤖\n\n🎤 Starting voice chat automatically so you can communicate with your partner!`,
+                content: `Hi! I'm your AI coding mentor. I'll help both of you as you code together. 🤖\n\n🎤 Voice chat will start automatically - no need to click anything!`,
                 sender: 'ai',
                 senderName: 'AI Mentor',
                 type: 'message'
@@ -784,9 +818,20 @@ export default function CollaborativeCoding({
             })
 
             // Auto-start voice call after a short delay
-            setTimeout(() => {
-                startVoiceCall()
-            }, 3000) // Increased delay to ensure both users are ready
+            setTimeout(async () => {
+                try {
+                    console.log('🎤 Auto-starting voice chat...')
+                    await startVoiceCall()
+                } catch (error) {
+                    console.error('❌ Failed to auto-start voice chat:', error)
+                    addChatMessage({
+                        content: '⚠️ Voice chat failed to start automatically. You can use the microphone button to try again.',
+                        sender: 'ai',
+                        senderName: 'System',
+                        type: 'message'
+                    })
+                }
+            }, 2000) // Reduced delay for faster startup
 
             // Set up periodic connection health check
             const healthCheckInterval = setInterval(() => {
@@ -949,6 +994,18 @@ export default function CollaborativeCoding({
 
     // Handle remote voice ready notification
     const handleRemoteVoiceReady = (payload: any) => {
+        console.log('🔍 Voice ready payload received:', {
+            payloadUserId: payload.userId,
+            currentUserId: user?.id,
+            shouldProcess: payload.userId !== user?.id
+        })
+        
+        // Ignore messages from self
+        if (payload.userId === user?.id) {
+            console.log('🔄 Ignoring voice ready message from self')
+            return
+        }
+        
         if (payload.userId !== user?.id) {
             console.log('🎤 Remote user voice ready:', payload)
 
@@ -960,8 +1017,80 @@ export default function CollaborativeCoding({
                 type: 'message'
             })
 
-            // No automatic connection logic here - it's handled in startVoiceCall
-            // This prevents duplicate connection attempts
+            // Mark remote peer as ready
+            setPeerVoiceStatus(prev => ({
+                ...prev,
+                remoteSocketConnected: true,
+                teacherReady: payload.role === 'teacher' ? true : prev.teacherReady,
+                learnerReady: payload.role === 'learner' ? true : prev.learnerReady
+            }))
+
+            console.log('🔍 Updated peer voice status:', {
+                remoteSocketConnected: true,
+                remoteRole: payload.role,
+                myRole: isTeacher ? 'teacher' : 'learner'
+            })
+
+            // Determine who should initiate based on user IDs (smaller ID initiates)
+            const myId = user?.id || ''
+            const partnerId = payload.userId
+            const shouldInitiate = myId < partnerId
+            
+            console.log('🔍 Connection decision:', {
+                shouldInitiate,
+                myId,
+                partnerId,
+                comparison: `${myId} < ${partnerId} = ${shouldInitiate}`,
+                hasLocalStream: !!voiceCall.localStream,
+                isConnected: voiceCall.isConnected,
+                hasPeerClient: !!peerClientRef.current
+            })
+            
+            if (shouldInitiate && voiceCall.localStream && !voiceCall.isConnected && peerClientRef.current) {
+                console.log('🔗 Remote peer ready, attempting connection now...')
+                
+                // Use a retry mechanism with exponential backoff
+                const remotePeerId = `${payload.userId}-voice-${sessionId}`
+                let retryCount = 0
+                const maxRetries = 3
+                
+                const attemptConnection = async () => {
+                    try {
+                        console.log(`🔗 Connection attempt ${retryCount + 1}/${maxRetries} to peer:`, remotePeerId)
+                        
+                        await peerClientRef.current.createConnection(remotePeerId)
+                        setVoiceCall(prev => ({ ...prev, isConnected: true }))
+                        console.log('✅ Voice connection established after remote peer ready')
+
+                        addChatMessage({
+                            content: '🎤 Voice chat connected! You can now talk to your partner.',
+                            sender: 'ai',
+                            senderName: 'System',
+                            type: 'message'
+                        })
+                    } catch (error) {
+                        console.error(`❌ Connection attempt ${retryCount + 1} failed:`, error)
+                        
+                        retryCount++
+                        if (retryCount < maxRetries) {
+                            const delay = Math.pow(2, retryCount) * 1000 // Exponential backoff: 2s, 4s, 8s
+                            console.log(`⏳ Retrying connection in ${delay}ms...`)
+                            setTimeout(attemptConnection, delay)
+                        } else {
+                            console.error('❌ All connection attempts failed')
+                            addChatMessage({
+                                content: '⚠️ Voice connection failed after multiple attempts. Please try refreshing the page.',
+                                sender: 'ai',
+                                senderName: 'System',
+                                type: 'message'
+                            })
+                        }
+                    }
+                }
+                
+                // Start first attempt after a 2-second delay
+                setTimeout(attemptConnection, 2000)
+            }
         }
     }
 
@@ -1503,8 +1632,8 @@ export default function CollaborativeCoding({
                                     disabled={voiceCall.isInitiating}
                                     className="h-8 px-2 sm:px-3"
                                     title={
-                                        voiceCall.isInitiating ? "Starting voice chat..." :
-                                            !voiceCall.isConnected ? "Start voice chat with your partner" :
+                                        voiceCall.isInitiating ? "Voice chat starting automatically..." :
+                                            !voiceCall.localStream ? "Voice chat starting automatically..." :
                                                 voiceCall.isMuted ? "Unmute microphone" : "Mute microphone"
                                     }
                                 >
@@ -1518,7 +1647,7 @@ export default function CollaborativeCoding({
                                     {!isMobile && (
                                         <span className="ml-1">
                                             {voiceCall.isInitiating ? 'Starting...' :
-                                                !voiceCall.isConnected ? 'Start Voice' :
+                                                !voiceCall.localStream ? 'Starting...' :
                                                     voiceCall.isMuted ? 'Unmute' : 'Mute'}
                                         </span>
                                     )}
@@ -1851,8 +1980,8 @@ export default function CollaborativeCoding({
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
                     <div className="bg-white rounded-lg p-6 text-center">
                         <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                        <p className="text-lg font-medium">Starting Voice Call...</p>
-                        <p className="text-sm text-gray-500 mt-1">Please allow microphone access</p>
+                        <p className="text-lg font-medium">Starting Voice Chat Automatically...</p>
+                        <p className="text-sm text-gray-500 mt-1">Please allow microphone access to talk with your partner</p>
                     </div>
                 </div>
             )}

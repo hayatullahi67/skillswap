@@ -707,8 +707,8 @@ export default function LivePage() {
           <div className="flex-1">
             <CollaborativeCoding
               sessionId={currentSession.id}
-              mentorId={matchedPeer.id}
-              learnerId={user?.id || ''}
+              mentorId={currentSession.host_id}
+              learnerId={currentSession.learner_id}
               skillName={matchedPeer.skill_name}
               onEndSession={endCodingSession}
             />

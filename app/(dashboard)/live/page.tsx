@@ -159,28 +159,8 @@ export default function LivePage() {
     }
   }, [user])
 
-  // Load available skills and check for active sessions when component mounts
-  useEffect(() => {
-    const loadAvailableSkills = async () => {
-      if (!user) return
-
-      try {
-        const { data: skills, error } = await supabase
-          .from('user_skills')
-          .select('skill_name')
-          .eq('skill_type', 'teach')
-          .neq('user_id', user.id)
-
-        if (error) throw error
-
-        const uniqueSkills = Array.from(new Set(skills?.map(s => s.skill_name) || []))
-        setAvailableSkills(uniqueSkills)
-      } catch (error) {
-        console.error('Error loading skills:', error)
-      }
-    }
-
-    const checkForActiveSession = async (retryCount = 0) => {
+  // Function to check for active sessions - moved outside useEffect so it can be called from event handlers
+  const checkForActiveSession = async (retryCount = 0) => {
       if (!user) return
 
       try {
@@ -250,6 +230,27 @@ export default function LivePage() {
       }
     }
 
+  // Load available skills and check for active sessions when component mounts
+  useEffect(() => {
+    const loadAvailableSkills = async () => {
+      if (!user) return
+
+      try {
+        const { data: skills, error } = await supabase
+          .from('user_skills')
+          .select('skill_name')
+          .eq('skill_type', 'teach')
+          .neq('user_id', user.id)
+
+        if (error) throw error
+
+        const uniqueSkills = Array.from(new Set(skills?.map(s => s.skill_name) || []))
+        setAvailableSkills(uniqueSkills)
+      } catch (error) {
+        console.error('Error loading skills:', error)
+      }
+    }
+
     if (user) {
       loadAvailableSkills()
       
@@ -267,7 +268,7 @@ export default function LivePage() {
         checkForActiveSession()
       }
     }
-  }, [user])
+  }, [user, checkForActiveSession])
 
   const startLearningForm = () => {
     setCodingState('form')

@@ -17,21 +17,14 @@ export class SocketSignaling {
     return new Promise((resolve, reject) => {
       console.log('🚀 Initializing Socket.IO signaling for peer:', this.myPeerId)
 
-      // Connect to Socket.IO server with better error handling
+      // Connect to Socket.IO server
       this.socket = io({
         path: '/api/socket',
         transports: ['polling', 'websocket'],
         upgrade: true,
         rememberUpgrade: true,
         timeout: 20000,
-        forceNew: true,
-        autoConnect: true,
-        reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
-        maxReconnectionAttempts: 5,
-        randomizationFactor: 0.5
+        forceNew: true
       })
 
       this.socket.on('connect', () => {
@@ -50,14 +43,7 @@ export class SocketSignaling {
       this.socket.on('connect_error', (error) => {
         console.error('❌ Socket.IO connection error:', error)
         this.isConnected = false
-        
-        // Don't reject immediately, allow retries
-        if (error.message.includes('server error')) {
-          console.log('🔄 Server error detected, will retry connection...')
-          // Let the reconnection logic handle this
-        } else {
-          reject(new Error(`Socket.IO connection failed: ${error.message}`))
-        }
+        reject(error)
       })
 
       this.socket.on('disconnect', (reason) => {
@@ -71,7 +57,7 @@ export class SocketSignaling {
 
       // Handle incoming signals
       this.socket.on('signal', ({ from, data }) => {
-        console.log('📡 Received signal via Socket.IO:', { from, type: data.type || 'unknown' })
+        console.log('� Recerived signal via Socket.IO:', { from, type: data.type || 'unknown' })
         
         if (this.onSignalCallback) {
           this.onSignalCallback(from, data)
@@ -87,33 +73,12 @@ export class SocketSignaling {
         }
       })
 
-      // Add reconnection handlers
-      this.socket.on('reconnect', (attemptNumber) => {
-        console.log('🔄 Socket.IO reconnected after', attemptNumber, 'attempts')
-        this.isConnected = true
-        if (!this.socket?.id) {
-          // If we don't have a resolved promise yet, resolve now
-          resolve()
-        }
-      })
-
-      this.socket.on('reconnect_error', (error) => {
-        console.error('❌ Socket.IO reconnection error:', error)
-      })
-
-      this.socket.on('reconnect_failed', () => {
-        console.error('❌ Socket.IO reconnection failed after all attempts')
-        this.isConnected = false
-        reject(new Error('Socket.IO connection failed after all reconnection attempts'))
-      })
-
-      // Set connection timeout with more lenient timing
+      // Set connection timeout
       setTimeout(() => {
-        if (!this.isConnected && this.socket && !this.socket.connected) {
-          console.error('❌ Socket.IO connection timeout after 15 seconds')
-          reject(new Error('Socket.IO connection timeout - server may be unavailable'))
+        if (!this.isConnected) {
+          reject(new Error('Socket.IO connection timeout'))
         }
-      }, 15000)
+      }, 10000)
     })
   }
 
@@ -179,7 +144,7 @@ export class SocketSignaling {
 
   // Disconnect
   disconnect(): void {
-    console.log('🔌 Disconnecting Socket.IO signaling')
+    console.log('�  Disconnecting Socket.IO signaling')
     
     if (this.socket) {
       this.socket.disconnect()

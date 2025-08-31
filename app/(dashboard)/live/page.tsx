@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -28,7 +28,7 @@ export default function LivePage() {
   const [availableSkills, setAvailableSkills] = useState<string[]>([])
   const [matchedPeers, setMatchedPeers] = useState<MatchedPeer[]>([])
   const [selectedPeer, setSelectedPeer] = useState<MatchedPeer | null>(null)
-
+  const [hasShownResumeModal, setHasShownResumeModal] = useState(false)
 
   const { user } = useAppStore()
   const { modalState, showError, showWarning, showInfo, closeModal } = useModal()
@@ -159,9 +159,15 @@ export default function LivePage() {
     }
   }, [user])
 
-  // Function to check for active sessions - moved outside useEffect so it can be called from event handlers
-  const checkForActiveSession = async (retryCount = 0) => {
+  // Function to check for active sessions - memoized to prevent infinite loops
+  const checkForActiveSession = useCallback(async (retryCount = 0) => {
       if (!user) return
+      
+      // Don't check if we're already in a coding session
+      if (codingState === 'coding') {
+        console.log('🔄 Already in coding session, skipping check')
+        return
+      }
 
       try {
         console.log('🔍 Checking for active coding sessions...', retryCount > 0 ? `(retry ${retryCount})` : '')
@@ -207,7 +213,11 @@ export default function LivePage() {
           setMatchedPeer(peerInfo)
           setCodingState('coding')
 
-          showInfo('Session Resumed', 'Resuming your active coding session...')
+          // Only show modal once per session
+          if (!hasShownResumeModal) {
+            showInfo('Session Resumed', 'Resuming your active coding session...')
+            setHasShownResumeModal(true)
+          }
           
           // Log for debugging
           console.log('🎯 LIVE PAGE: Active session resumed', {
@@ -217,18 +227,17 @@ export default function LivePage() {
             codingState: 'coding',
             peerInfo
           })
-        } else if (retryCount < 3) {
-          // If no active session found and we haven't retried too many times, try again
-          // This handles the case where caller is redirected before session is fully updated
-          console.log('🔄 No active session found, retrying in 1 second...')
+        } else if (retryCount < 2) {
+          // Reduced retry count to prevent infinite loops
+          console.log('🔄 No active session found, retrying in 2 seconds...')
           setTimeout(() => {
             checkForActiveSession(retryCount + 1)
-          }, 1000)
+          }, 2000)
         }
       } catch (error) {
         console.error('Error checking for active session:', error)
       }
-    }
+    }, [user, showInfo, codingState])
 
   // Load available skills and check for active sessions when component mounts
   useEffect(() => {
@@ -265,10 +274,15 @@ export default function LivePage() {
           checkForActiveSession()
         }, 500)
       } else {
-        checkForActiveSession()
+        // Only check once on mount, not on every render
+        const timeoutId = setTimeout(() => {
+          checkForActiveSession()
+        }, 100)
+        
+        return () => clearTimeout(timeoutId)
       }
     }
-  }, [user, checkForActiveSession])
+  }, [user]) // Removed checkForActiveSession from dependencies to prevent infinite loop
 
   const startLearningForm = () => {
     setCodingState('form')
@@ -490,6 +504,7 @@ export default function LivePage() {
     setMatchedPeers([])
     setSelectedPeer(null)
     setSkillToLearn('')
+    setHasShownResumeModal(false) // Reset modal flag
   }
 
   const endCodingSession = () => {

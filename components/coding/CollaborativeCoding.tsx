@@ -112,6 +112,15 @@ export default function CollaborativeCoding({
         isMuted: false,
         isDeafened: false
     })
+    
+    // Track when both peers are ready for voice
+    const [peerVoiceStatus, setPeerVoiceStatus] = useState<{
+        teacherReady: boolean,
+        learnerReady: boolean
+    }>({
+        teacherReady: false,
+        learnerReady: false
+    })
 
     const { user } = useAppStore()
     const editorRef = useRef<any>(null)
@@ -203,11 +212,43 @@ export default function CollaborativeCoding({
                     isInitiating: false
                 }))
 
-                // Play remote audio
+                // Play remote audio with better error handling
                 if (remoteAudioRef.current) {
                     remoteAudioRef.current.srcObject = remoteStream
                     remoteAudioRef.current.muted = false // Make sure we can hear them
-                    remoteAudioRef.current.play().catch(e => console.log('Remote audio play failed:', e))
+                    remoteAudioRef.current.volume = 1.0 // Ensure volume is at maximum
+                    
+                    // Try to play with user interaction handling
+                    const playPromise = remoteAudioRef.current.play()
+                    if (playPromise !== undefined) {
+                        playPromise
+                            .then(() => {
+                                console.log('✅ Remote audio playing successfully')
+                                
+                                // Add volume monitoring for debugging
+                                const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+                                const source = audioContext.createMediaStreamSource(remoteStream)
+                                const analyser = audioContext.createAnalyser()
+                                source.connect(analyser)
+                                
+                                const dataArray = new Uint8Array(analyser.frequencyBinCount)
+                                const checkVolume = () => {
+                                    analyser.getByteFrequencyData(dataArray)
+                                    const volume = dataArray.reduce((a, b) => a + b) / dataArray.length
+                                    if (volume > 0) {
+                                        console.log('🔊 Remote audio volume detected:', volume)
+                                    }
+                                }
+                                
+                                // Check volume every 2 seconds for debugging
+                                const volumeInterval = setInterval(checkVolume, 2000)
+                                setTimeout(() => clearInterval(volumeInterval), 10000) // Stop after 10 seconds
+                            })
+                            .catch(e => {
+                                console.log('⚠️ Remote audio play failed (may need user interaction):', e)
+                                // This is often due to browser autoplay policy
+                            })
+                    }
                 }
 
                 // Notify user that voice connection is established
@@ -225,8 +266,11 @@ export default function CollaborativeCoding({
 
                 if (fromPeerId === remotePeerId) {
                     try {
-                        console.log('✅ Accepting voice call from:', fromPeerId)
+                        console.log('✅ Teacher accepting voice call from learner:', fromPeerId)
                         await peerClientRef.current.acceptConnection(fromPeerId)
+                        
+                        // Update voice call state for teacher
+                        setVoiceCall(prev => ({ ...prev, isConnected: true }))
 
                         addChatMessage({
                             content: '📞 Voice call connected! Your partner can now hear you.',
@@ -236,6 +280,13 @@ export default function CollaborativeCoding({
                         })
                     } catch (error) {
                         console.error('❌ Failed to accept voice call:', error)
+                        
+                        addChatMessage({
+                            content: '❌ Failed to accept voice call. Please try again.',
+                            sender: 'ai',
+                            senderName: 'System',
+                            type: 'message'
+                        })
                     }
                 }
             })
@@ -331,12 +382,14 @@ export default function CollaborativeCoding({
                 // Store peer IDs for connection
                 peerClientRef.current.myPeerId = myPeerId
                 peerClientRef.current.remotePeerId = remotePeerId
+                
+                // Now initialize peer client
+                console.log('🎤 Initializing peer client...')
+                await peerClientRef.current.initialize()
+                console.log('✅ Peer client initialized')
+            } else {
+                console.log('🔄 Peer client already initialized, reusing...')
             }
-
-            // Now initialize peer client
-            console.log('🎤 Initializing peer client...')
-            await peerClientRef.current.initialize()
-            console.log('✅ Peer client initialized')
 
             // Get the local stream
             const localStream = await peerClientRef.current.getLocalStream()
@@ -376,47 +429,54 @@ export default function CollaborativeCoding({
                         timestamp: Date.now()
                     }
                 })
+                
+                console.log('📡 Broadcasted voice ready status:', {
+                    role: isTeacher ? 'teacher' : 'learner',
+                    peerId: peerClientRef.current.myPeerId
+                })
             }
 
-            // If I'm the teacher, I wait for learner to connect
-            // If I'm the learner, I initiate connection to teacher
-            if (isTeacher) {
-                console.log('👨‍🏫 I am teacher, waiting for learner to connect...')
-                setVoiceCall(prev => ({ ...prev, isConnected: true }))
-
-                addChatMessage({
-                    content: '🎤 Voice chat ready! Waiting for learner to join...',
-                    sender: 'ai',
-                    senderName: 'System',
-                    type: 'message'
-                })
-            } else {
-                console.log('👨‍🎓 I am learner, connecting to teacher...')
-
-                // Small delay to ensure teacher is ready
+            // Simplified approach: Use user ID comparison to determine who initiates
+            // The user with the smaller ID always initiates to avoid conflicts
+            const shouldInitiate = user?.id && (user.id < (isTeacher ? learnerId : mentorId))
+            
+            if (shouldInitiate) {
+                console.log('🔗 I will initiate the voice connection (smaller user ID)')
+                
                 setTimeout(async () => {
                     try {
+                        console.log('🔗 Creating connection to peer:', remotePeerId)
                         await peerClientRef.current.createConnection(remotePeerId)
                         setVoiceCall(prev => ({ ...prev, isConnected: true }))
-                        console.log('✅ Connected to teacher for voice chat')
+                        console.log('✅ Voice connection established as initiator')
 
                         addChatMessage({
-                            content: '🎤 Voice chat connected! You can now talk to your mentor.',
+                            content: '🎤 Voice chat connected! You can now talk to your partner.',
                             sender: 'ai',
                             senderName: 'System',
                             type: 'message'
                         })
                     } catch (connectionError) {
-                        console.error('❌ Failed to connect to teacher:', connectionError)
+                        console.error('❌ Failed to establish voice connection:', connectionError)
 
                         addChatMessage({
-                            content: '⚠️ Voice connection failed. Your mentor may not have voice chat enabled yet.',
+                            content: '⚠️ Voice connection failed. Please try again.',
                             sender: 'ai',
                             senderName: 'System',
                             type: 'message'
                         })
                     }
                 }, 2000)
+            } else {
+                console.log('👂 I will wait for incoming voice connection (larger user ID)')
+                setVoiceCall(prev => ({ ...prev, isConnected: true }))
+
+                addChatMessage({
+                    content: '🎤 Voice chat ready! Waiting for your partner to connect...',
+                    sender: 'ai',
+                    senderName: 'System',
+                    type: 'message'
+                })
             }
 
             console.log('✅ Voice call started successfully with fresh permissions')
@@ -430,15 +490,17 @@ export default function CollaborativeCoding({
             }))
 
             // Show more specific error message
-            let errorMessage = '❌ Failed to start voice call. '
+            let errorMessage = '❌ Voice chat is currently unavailable. '
             const errorMsg = error instanceof Error ? error.message : String(error)
 
             if (errorMsg.includes('Permission denied') || errorMsg.includes('permissions')) {
-                errorMessage += 'Microphone access was denied. Please click the microphone button and allow access to enable voice chat with your partner.'
+                errorMessage += 'Microphone access was denied. Please allow microphone access and try again.'
             } else if (errorMsg.includes('not found') || errorMsg.includes('NotFoundError')) {
-                errorMessage += 'No microphone found. Please check your audio devices and click the microphone button to try again.'
+                errorMessage += 'No microphone found. Please check your audio devices.'
+            } else if (errorMsg.includes('server error') || errorMsg.includes('Socket.IO')) {
+                errorMessage += 'The voice chat server is temporarily unavailable. You can still use text chat to communicate with your coding partner.'
             } else {
-                errorMessage += 'Please click the microphone button to try starting voice chat again.'
+                errorMessage += 'There was a technical issue. You can continue coding and use text chat to communicate.'
             }
 
             addChatMessage({
@@ -447,6 +509,18 @@ export default function CollaborativeCoding({
                 senderName: 'System',
                 type: 'message'
             })
+
+            // If it's a server error, suggest using text chat
+            if (errorMsg.includes('server error') || errorMsg.includes('Socket.IO')) {
+                setTimeout(() => {
+                    addChatMessage({
+                        content: '💬 Don\'t worry! You can still collaborate effectively using this text chat. Type your questions, share ideas, and get help from your coding partner.',
+                        sender: 'ai',
+                        senderName: 'AI Mentor',
+                        type: 'message'
+                    })
+                }, 2000)
+            }
         }
     }
 
@@ -500,6 +574,16 @@ export default function CollaborativeCoding({
 
     // Toggle mute - start voice call if not already started
     const toggleMute = async () => {
+        // Enable audio playback on user interaction (for browser autoplay policy)
+        if (remoteAudioRef.current && remoteAudioRef.current.paused) {
+            try {
+                await remoteAudioRef.current.play()
+                console.log('✅ Remote audio enabled via user interaction')
+            } catch (e) {
+                console.log('⚠️ Could not enable remote audio:', e)
+            }
+        }
+
         // If voice call not started yet, start it first
         if (!voiceCall.isConnected && !voiceCall.isInitiating) {
             addChatMessage({
@@ -710,9 +794,23 @@ export default function CollaborativeCoding({
                     const health = peerClientRef.current.checkConnectionHealth?.()
                     if (health) {
                         console.log('🏥 Voice connection health:', health)
+                        
+                        // Check if connection is actually dead and try to recover
+                        Object.entries(health).forEach(([peerId, status]: [string, any]) => {
+                            if (status.connected === false && status.connectionState === 'failed') {
+                                console.log(`🔄 Connection to ${peerId} appears dead, attempting recovery...`)
+                                
+                                addChatMessage({
+                                    content: '🔄 Voice connection lost, attempting to reconnect...',
+                                    sender: 'ai',
+                                    senderName: 'System',
+                                    type: 'message'
+                                })
+                            }
+                        })
                     }
                 }
-            }, 30000) // Check every 30 seconds
+            }, 15000) // Check every 15 seconds
 
             // Clear interval on cleanup
             return () => clearInterval(healthCheckInterval)
@@ -740,7 +838,7 @@ export default function CollaborativeCoding({
 
             // Don't show confirmation dialog for refresh
             // event.preventDefault()
-            // event.returnValue = 'You are in a coding session. Are you sure you want to leave?'
+            // event.returnValue = 'Are you sure you want to leave the coding session?'ou are in a coding session. Are you sure you want to leave?'
             // return event.returnValue
         }
 
@@ -782,16 +880,18 @@ export default function CollaborativeCoding({
                 peerClientRef.current.disconnect()
             }
 
-            // Only end session on unmount if it's been mounted for more than 3 seconds
+            // Only end session on unmount if it's been mounted for more than 10 seconds
             // This prevents ending session during quick React re-renders or navigation
             const mountDuration = Date.now() - mountTimeRef.current
-            const minimumMountTime = 3000 // 3 seconds
+            const minimumMountTime = 10000 // 10 seconds - increased to prevent premature session ending
 
             if (mountDuration > minimumMountTime) {
                 console.log(`🔚 Component unmounted after ${mountDuration}ms - ending session and clearing permissions`)
                 endSessionGracefully('Component unmounted')
             } else {
-                console.log(`🔄 Component unmounted after only ${mountDuration}ms - likely a re-render, not ending session`)
+                console.log(`🔄 Component unmounted after only ${mountDuration}ms - likely a re-render or navigation, preserving session`)
+                // Just clean up voice call but preserve session
+                endVoiceCall()
             }
         }
     }, [sessionId, skillName])
@@ -860,28 +960,8 @@ export default function CollaborativeCoding({
                 type: 'message'
             })
 
-            // If I'm the learner and teacher just became ready, try to connect
-            if (!isTeacher && payload.role === 'teacher' && peerClientRef.current && !voiceCall.isConnected) {
-                console.log('👨‍🎓 Teacher is ready, attempting to connect...')
-
-                setTimeout(async () => {
-                    try {
-                        const remotePeerId = `${mentorId}-voice-${sessionId}`
-                        await peerClientRef.current.createConnection(remotePeerId)
-                        setVoiceCall(prev => ({ ...prev, isConnected: true }))
-                        console.log('✅ Connected to teacher after they became ready')
-
-                        addChatMessage({
-                            content: '🎤 Voice connection established with your mentor!',
-                            sender: 'ai',
-                            senderName: 'System',
-                            type: 'message'
-                        })
-                    } catch (error) {
-                        console.error('❌ Failed to connect after teacher ready:', error)
-                    }
-                }, 1000)
-            }
+            // No automatic connection logic here - it's handled in startVoiceCall
+            // This prevents duplicate connection attempts
         }
     }
 
@@ -1360,8 +1440,31 @@ export default function CollaborativeCoding({
     return (
         <div className={` flex flex-col bg-gradient-to-br from-slate-50 to-blue-50 ${isFullscreen ? 'fixed inset-0 z-50' : ''}`}>
             {/* Hidden audio elements for voice chat */}
-            <audio ref={localAudioRef} autoPlay muted />
-            <audio ref={remoteAudioRef} autoPlay />
+            <audio 
+                ref={localAudioRef} 
+                autoPlay 
+                muted 
+                playsInline
+                controls={false}
+            />
+            <audio 
+                ref={remoteAudioRef} 
+                autoPlay 
+                playsInline
+                controls={false}
+                onLoadedMetadata={() => {
+                    console.log('🎵 Remote audio metadata loaded')
+                }}
+                onCanPlay={() => {
+                    console.log('🎵 Remote audio can play')
+                }}
+                onPlay={() => {
+                    console.log('🎵 Remote audio started playing')
+                }}
+                onError={(e) => {
+                    console.error('🎵 Remote audio error:', e)
+                }}
+            />
 
             {/* Header - Responsive */}
             <div className="bg-white/90 backdrop-blur-sm border-b border-gray-200 shadow-sm">

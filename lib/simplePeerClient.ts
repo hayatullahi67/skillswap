@@ -29,9 +29,16 @@ export class SimplePeerClient {
     try {
       console.log('🚀 Initializing SimplePeerClient...')
       
-      // Initialize Socket.IO signaling
+      // Initialize Socket.IO signaling with timeout
       this.signaling = new SocketSignaling(this.myPeerId)
-      await this.signaling.initialize()
+      
+      // Try to initialize with a timeout
+      const initPromise = this.signaling.initialize()
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Socket.IO initialization timeout')), 10000)
+      })
+      
+      await Promise.race([initPromise, timeoutPromise])
       
       // Set up signaling callbacks
       this.signaling.onSignal((from: string, data: any) => {
@@ -51,6 +58,15 @@ export class SimplePeerClient {
       console.log('✅ SimplePeerClient initialized successfully')
     } catch (error) {
       console.error('❌ Failed to initialize SimplePeerClient:', error)
+      
+      // If Socket.IO fails, we can still get the local stream for UI purposes
+      try {
+        await this.getLocalStream()
+        console.log('⚠️ Voice client in limited mode - local audio only')
+      } catch (streamError) {
+        console.error('❌ Failed to get local stream:', streamError)
+      }
+      
       throw error
     }
   }
@@ -113,6 +129,7 @@ export class SimplePeerClient {
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
           {
             urls: 'turn:openrelay.metered.ca:80',
             username: 'openrelayproject',
@@ -124,7 +141,19 @@ export class SimplePeerClient {
             credential: 'openrelayproject'
           }
         ],
-        iceCandidatePoolSize: 10
+        iceCandidatePoolSize: 10,
+        iceTransportPolicy: 'all',
+        bundlePolicy: 'max-bundle',
+        rtcpMuxPolicy: 'require'
+      },
+      // Add connection timeout and retry settings
+      offerOptions: {
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: false
+      },
+      answerOptions: {
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: false
       }
     })
 
@@ -159,6 +188,7 @@ export class SimplePeerClient {
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
           {
             urls: 'turn:openrelay.metered.ca:80',
             username: 'openrelayproject',
@@ -170,7 +200,19 @@ export class SimplePeerClient {
             credential: 'openrelayproject'
           }
         ],
-        iceCandidatePoolSize: 10
+        iceCandidatePoolSize: 10,
+        iceTransportPolicy: 'all',
+        bundlePolicy: 'max-bundle',
+        rtcpMuxPolicy: 'require'
+      },
+      // Add connection timeout and retry settings
+      offerOptions: {
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: false
+      },
+      answerOptions: {
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: false
       }
     })
 
@@ -307,16 +349,35 @@ export class SimplePeerClient {
 
     peer.on('error', (error: Error) => {
       console.error(`❌ Error with peer ${peerId}:`, error)
-      this.connections.delete(peerId)
-      this.connectionStates.set(peerId, 'failed')
-      this.pendingSignals.delete(peerId)
+      
+      // Don't immediately delete connection on certain recoverable errors
+      const errorMessage = error.message.toLowerCase()
+      if (errorMessage.includes('connection failed') && !errorMessage.includes('ice')) {
+        console.log(`🔄 Connection error for peer ${peerId}, but keeping connection for potential recovery`)
+        this.connectionStates.set(peerId, 'failed')
+      } else {
+        console.log(`💀 Fatal error for peer ${peerId}, removing connection`)
+        this.connections.delete(peerId)
+        this.connectionStates.set(peerId, 'failed')
+        this.pendingSignals.delete(peerId)
+      }
     })
 
-    // Handle ICE connection state changes
+    // Handle ICE connection state changes with better stability
     peer.on('iceStateChange', (state: string) => {
       console.log(`🧊 ICE state for peer ${peerId}:`, state)
       
-      if (state === 'failed' || state === 'closed') {
+      if (state === 'connected' || state === 'completed') {
+        this.connectionStates.set(peerId, 'connected')
+        console.log(`✅ ICE connection established for peer ${peerId}`)
+      } else if (state === 'disconnected') {
+        console.log(`⚠️ ICE disconnected for peer ${peerId}, but connection may recover`)
+        // Don't immediately fail on disconnected - it might reconnect
+      } else if (state === 'failed') {
+        console.log(`❌ ICE connection failed for peer ${peerId}`)
+        this.connectionStates.set(peerId, 'failed')
+      } else if (state === 'closed') {
+        console.log(`🔌 ICE connection closed for peer ${peerId}`)
         this.connectionStates.set(peerId, 'failed')
       }
     })
@@ -361,6 +422,24 @@ export class SimplePeerClient {
       connection.peer.destroy()
       this.connections.delete(peerId)
     }
+  }
+
+  checkConnectionHealth(): { [peerId: string]: any } {
+    const health: { [peerId: string]: any } = {}
+    
+    this.connections.forEach((connection, peerId) => {
+      const peer = connection.peer as any
+      health[peerId] = {
+        connected: peer.connected,
+        destroyed: peer.destroyed,
+        connectionState: this.connectionStates.get(peerId),
+        hasRemoteStream: !!connection.remoteStream,
+        iceConnectionState: peer._pc?.iceConnectionState,
+        connectionState_rtc: peer._pc?.connectionState
+      }
+    })
+    
+    return health
   }
 
   disconnect(): void {

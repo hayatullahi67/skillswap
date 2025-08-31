@@ -8,27 +8,33 @@ export const config = {
 };
 
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
-  // Reuse existing server on hot reload
-  const anyRes = res as any;
-  if (!anyRes.socket.server.io) {
-    console.log('🚀 Initializing Socket.IO server...');
-    const io = new IOServer(anyRes.socket.server, {
-      path: "/api/socket",
-      cors: { 
-        origin: "*",
-        methods: ["GET", "POST"],
-        credentials: false
-      },
-      allowEIO3: true, // allow Engine.IO v3 clients
-      transports: ["polling", "websocket"],
-      // Mobile-friendly server options
-      pingTimeout: 60000, // 60 seconds
-      pingInterval: 25000, // 25 seconds
-      upgradeTimeout: 30000, // 30 seconds for mobile networks
-      maxHttpBufferSize: 1e6, // 1MB buffer
-      allowUpgrades: true,
-    });
-    anyRes.socket.server.io = io;
+  try {
+    // Reuse existing server on hot reload
+    const anyRes = res as any;
+    if (!anyRes.socket.server.io) {
+      console.log('🚀 Initializing Socket.IO server...');
+      const io = new IOServer(anyRes.socket.server, {
+        path: "/api/socket",
+        cors: { 
+          origin: process.env.NODE_ENV === 'production' 
+            ? [process.env.NEXT_PUBLIC_APP_URL || 'https://your-domain.com']
+            : ["http://localhost:3000", "http://127.0.0.1:3000"],
+          methods: ["GET", "POST"],
+          credentials: false
+        },
+        allowEIO3: true, // allow Engine.IO v3 clients
+        transports: ["polling", "websocket"],
+        // Mobile-friendly server options
+        pingTimeout: 60000, // 60 seconds
+        pingInterval: 25000, // 25 seconds
+        upgradeTimeout: 30000, // 30 seconds for mobile networks
+        maxHttpBufferSize: 1e6, // 1MB buffer
+        allowUpgrades: true,
+        // Add error handling
+        serveClient: false,
+        connectTimeout: 45000,
+      });
+      anyRes.socket.server.io = io;
 
     io.engine.on("connection_error", (err) => {
       console.log('❌ Socket.IO engine connection error:', err.req);
@@ -66,6 +72,10 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
           console.log('✅ Signal delivered to', targetSockets.size, 'socket(s)');
         } else {
           console.log('❌ Target peer not found:', to);
+          console.log('📋 Available rooms:', Array.from(io.sockets.adapter.rooms.keys()));
+          console.log('📋 All connected sockets:', Array.from(io.sockets.sockets.keys()));
+          
+          // Send error back to sender
           socket.emit("error", { message: "Target peer not found", targetPeer: to });
         }
       });
@@ -102,5 +112,20 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   } else {
     console.log('♻️ Socket.IO server already exists, reusing...');
   }
-  res.end();
+  
+  // Set proper headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+  
+  res.status(200).json({ status: 'Socket.IO server running' });
+  } catch (error) {
+    console.error('❌ Socket.IO server error:', error);
+    res.status(500).json({ error: 'Socket.IO server failed to initialize' });
+  }
 }

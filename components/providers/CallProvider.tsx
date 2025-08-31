@@ -599,7 +599,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       const initializedPeerClient = await initializePeerClientWhenNeeded()
       const stream = await initializedPeerClient.getLocalStream()
       setLocalStream(stream)
-      console.log('✅ Got local media stream with tracks:', stream.getTracks().map(t => `${t.kind}: ${t.label}`))
+      console.log('✅ Got local media stream with tracks:', stream.getTracks().map((t: MediaStreamTrack) => `${t.kind}: ${t.label}`))
 
       // Set local video
       if (localVideoRef.current) {

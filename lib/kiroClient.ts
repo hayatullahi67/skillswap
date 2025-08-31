@@ -302,6 +302,164 @@ export class KiroClient {
     }
   }
 
+  // AI Coding Methods
+  async analyzeCode(code: string, language: string, context?: string) {
+    console.log(`🔍 Analyzing ${language} code...`);
+
+    try {
+      const response = await fetch(`${this.baseUrl}/ai-coding`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'analyzeCode',
+          code: code,
+          language: language,
+          context: context
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      }
+
+      const analysisData = await response.json();
+      console.log("✅ Code analysis completed successfully");
+      return analysisData;
+
+    } catch (error) {
+      console.error("❌ Code analysis failed:", error);
+      throw error;
+    }
+  }
+
+  async suggestImprovements(code: string, language: string, focusArea?: string) {
+    console.log(`💡 Suggesting improvements for ${language} code...`);
+
+    try {
+      const response = await fetch(`${this.baseUrl}/ai-coding`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'suggestImprovements',
+          code: code,
+          language: language,
+          focusArea: focusArea
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      }
+
+      const improvementData = await response.json();
+      console.log("✅ Improvements suggested successfully");
+      return improvementData;
+
+    } catch (error) {
+      console.error("❌ Improvement suggestion failed:", error);
+      throw error;
+    }
+  }
+
+  async explainCode(code: string, language: string, selectedLine?: number, question?: string) {
+    console.log(`📚 Explaining ${language} code...`);
+
+    try {
+      const response = await fetch(`${this.baseUrl}/ai-coding`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'explainCode',
+          code: code,
+          language: language,
+          selectedLine: selectedLine,
+          question: question
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      }
+
+      const explanationData = await response.json();
+      console.log("✅ Code explanation generated successfully");
+      return explanationData.explanation;
+
+    } catch (error) {
+      console.error("❌ Code explanation failed:", error);
+      throw error;
+    }
+  }
+
+  async generateCodeExample(description: string, language: string, difficulty?: string, includeComments?: boolean) {
+    console.log(`🔨 Generating ${language} code example...`);
+
+    try {
+      const response = await fetch(`${this.baseUrl}/ai-coding`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'generateExample',
+          description: description,
+          language: language,
+          difficulty: difficulty || 'beginner',
+          includeComments: includeComments !== false
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      }
+
+      const exampleData = await response.json();
+      console.log("✅ Code example generated successfully");
+      return exampleData;
+
+    } catch (error) {
+      console.error("❌ Code example generation failed:", error);
+      throw error;
+    }
+  }
+
+  async findBugs(code: string, language: string, context?: string) {
+    console.log(`🐛 Finding bugs in ${language} code...`);
+
+    try {
+      const response = await fetch(`${this.baseUrl}/ai-coding`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'findBugs',
+          code: code,
+          language: language,
+          context: context
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      }
+
+      const bugData = await response.json();
+      console.log("✅ Bug analysis completed successfully");
+      return bugData;
+
+    } catch (error) {
+      console.error("❌ Bug finding failed:", error);
+      throw error;
+    }
+  }
+
   private convertTextToTutorial(text: string, skillName: string, userLevel: string) {
     // This method is deprecated - all tutorials are now generated dynamically by AI
     // Keeping for backward compatibility but should not be used

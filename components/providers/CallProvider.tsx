@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { useAppStore } from '@/lib/store'
 import { supabase } from '@/lib/supabaseClient'
 import { IncomingCallOverlay } from '@/components/ui/incoming-call-overlay'
@@ -16,6 +17,7 @@ type IncomingCall = {
   learnerName: string
   skillName: string
   learnerId: string
+  sessionMode?: string
 }
 
 type CallState = 'idle' | 'incoming' | 'connected' | 'ended'
@@ -51,13 +53,50 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
   const { user } = useAppStore()
   const { showInfo, showWarning } = useModal()
+  const router = useRouter()
   const ringAudioRef = useRef<HTMLAudioElement | null>(null)
   const localVideoRef = useRef<HTMLVideoElement>(null)
   const remoteVideoRef = useRef<HTMLVideoElement>(null)
 
-  // Initialize peer client and signaling
-  const peerClient = getPeerClient()
+  // Lazy initialize peer client and signaling only when needed
+  const [peerClient, setPeerClient] = useState<any>(null)
   const [globalSignaling, setGlobalSignaling] = useState<any>(null)
+
+  // Function to initialize peer client only when needed
+  const initializePeerClientWhenNeeded = async () => {
+    if (peerClient) {
+      return peerClient // Already initialized
+    }
+
+    console.log('🎤 Initializing peer client for call...')
+    const newPeerClient = getPeerClient()
+    
+    // Initialize peer client with media access
+    await newPeerClient.initialize()
+    console.log('✅ Peer client initialized for call')
+
+    // Set up incoming call handler
+    newPeerClient.onIncomingCall((peerId: string, remoteStream: MediaStream) => {
+      console.log('📹 GLOBAL: Received remote video stream from:', peerId)
+      console.log('📹 Remote stream tracks:', {
+        video: remoteStream.getVideoTracks().length,
+        audio: remoteStream.getAudioTracks().length,
+        streamId: remoteStream.id
+      })
+
+      setRemoteStream(remoteStream)
+      setCallState('connected')
+    })
+
+    // Set up signaling
+    newPeerClient.onSignal((peerId: string, signalData: any) => {
+      console.log('📡 GLOBAL: Outgoing signal to peer:', peerId, signalData.type)
+      // Socket signaling handles this automatically
+    })
+
+    setPeerClient(newPeerClient)
+    return newPeerClient
+  }
 
   // Initialize ring sound using Web Audio API
   useEffect(() => {
@@ -113,91 +152,66 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     createRingSound()
   }, [])
 
-  // Initialize peer client and signaling ONCE globally
+  // Set up event listeners for peer connections
   useEffect(() => {
-    const initializePeerSystem = async () => {
-      try {
-        console.log('🚀 Initializing GLOBAL peer system...')
+    console.log('🚀 Setting up CallProvider event listeners...')
 
-        // Initialize peer client
-        await peerClient.initialize()
-        console.log('✅ Peer client initialized globally')
-
-        // Set up incoming call handler ONCE
-        peerClient.onIncomingCall((peerId, remoteStream) => {
-          console.log('📹 GLOBAL: Received remote video stream from:', peerId)
-          console.log('📹 Remote stream tracks:', {
-            video: remoteStream.getVideoTracks().length,
-            audio: remoteStream.getAudioTracks().length
-          })
-
-          setRemoteStream(remoteStream)
-
-          // Display remote stream immediately
-          if (remoteVideoRef.current) {
-            remoteVideoRef.current.srcObject = remoteStream
-            remoteVideoRef.current.muted = false
-            remoteVideoRef.current.play().catch(e => console.log('Remote video play failed:', e))
-          }
-        })
-
-        // Set up signaling ONCE
-        peerClient.onSignal((peerId, signalData) => {
-          console.log('📡 GLOBAL: Outgoing signal to peer:', peerId, signalData.type)
-          // Socket signaling handles this automatically
-        })
-
-        // Initialize Supabase signaling (will be set per session)
-        console.log('✅ Peer client ready for Supabase signaling')
-
-        // Supabase signaling doesn't need server initialization
-        console.log('✅ Ready for Supabase realtime signaling')
-
-        // Set up peer disconnection listeners
-        const handlePeerDisconnected = async (event: any) => {
-          const { peerId, reason } = event.detail
-          console.log('🔌 Peer disconnected:', peerId, 'reason:', reason)
-          
-          if (callState === 'connected' && currentSession) {
-            const expectedPeerId = currentSession.learner_id === user?.id 
-              ? `${currentSession.host_id}-session-${currentSession.id}`
-              : `${currentSession.learner_id}-session-${currentSession.id}`
-            
-            if (peerId === expectedPeerId) {
-              console.log('📞 Other party disconnected unexpectedly')
-              await cleanupCall('Connection lost - other party disconnected')
-            }
-          }
+    // Set up peer disconnection listeners
+    const handlePeerDisconnected = async (event: any) => {
+      const { peerId, reason } = event.detail
+      console.log('🔌 Peer disconnected:', peerId, 'reason:', reason)
+      
+      if (callState === 'connected' && currentSession) {
+        const expectedPeerId = currentSession.learner_id === user?.id 
+          ? `${currentSession.host_id}-session-${currentSession.id}`
+          : `${currentSession.learner_id}-session-${currentSession.id}`
+        
+        if (peerId === expectedPeerId) {
+          console.log('📞 Other party disconnected unexpectedly')
+          await cleanupCall('Connection lost - other party disconnected')
         }
-
-        const handlePeerError = async (event: any) => {
-          const { peerId, error } = event.detail
-          console.log('❌ Peer error:', peerId, 'error:', error)
-          
-          if (callState === 'connected' && error.includes('Connection failed')) {
-            await cleanupCall('Connection failed - please try again')
-          }
-        }
-
-        window.addEventListener('peerDisconnected', handlePeerDisconnected)
-        window.addEventListener('peerError', handlePeerError)
-
-        // Supabase connection is handled automatically
-        console.log('✅ Supabase signaling ready')
-
-        // Cleanup function for peer event listeners
-        return () => {
-          window.removeEventListener('peerDisconnected', handlePeerDisconnected)
-          window.removeEventListener('peerError', handlePeerError)
-        }
-
-      } catch (error) {
-        console.error('❌ Failed to initialize global peer system:', error)
       }
     }
 
-    initializePeerSystem()
-  }, [])
+    const handlePeerError = async (event: any) => {
+      const { peerId, error } = event.detail
+      console.log('❌ Peer error:', peerId, 'error:', error)
+      
+      if (callState === 'connected' && error.includes('Connection failed')) {
+        await cleanupCall('Connection failed - please try again')
+      }
+    }
+
+    const handleCallEndedByPeer = async (event: any) => {
+      const { peerId, reason } = event.detail
+      console.log('📞 Call ended by peer:', peerId, 'reason:', reason)
+      
+      if (callState === 'connected' && currentSession) {
+        const expectedPeerId = currentSession.learner_id === user?.id 
+          ? `${currentSession.host_id}-session-${currentSession.id}`
+          : `${currentSession.learner_id}-session-${currentSession.id}`
+        
+        if (peerId === expectedPeerId) {
+          console.log('📞 Other party ended the call via signaling')
+          await cleanupCall('Other party ended the call')
+        }
+      }
+    }
+
+    window.addEventListener('peerDisconnected', handlePeerDisconnected)
+    window.addEventListener('peerError', handlePeerError)
+    window.addEventListener('callEndedByPeer', handleCallEndedByPeer)
+
+    console.log('✅ CallProvider event listeners set up')
+
+    // Cleanup function for peer event listeners
+    return () => {
+      window.removeEventListener('peerDisconnected', handlePeerDisconnected)
+      window.removeEventListener('peerError', handlePeerError)
+      window.removeEventListener('callEndedByPeer', handleCallEndedByPeer)
+      console.log('🧹 CallProvider event listeners cleaned up')
+    }
+  }, [callState, currentSession, user?.id])
 
   // Set up real-time subscriptions for incoming calls
   useEffect(() => {
@@ -236,10 +250,12 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
             sessionId: session.id,
             learnerName: caller?.name || 'Unknown',
             skillName: session.skill_name,
-            learnerId: session.learner_id
+            learnerId: session.learner_id,
+            sessionMode: session.mode
           }
 
           setIncomingCall(incomingCallData)
+          setCurrentSession(session)
           setCallState('incoming')
 
           // Start ring sound
@@ -279,10 +295,12 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           sessionId: payload.new.id,
           learnerName: caller?.name || 'Unknown',
           skillName: payload.new.skill_name,
-          learnerId: payload.new.learner_id
+          learnerId: payload.new.learner_id,
+          sessionMode: payload.new.mode
         }
 
         setIncomingCall(incomingCallData)
+        setCurrentSession(payload.new)
         setCallState('incoming')
 
         // Start ring sound
@@ -311,8 +329,36 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
         if (session.status === 'accepted' && session.learner_id === user?.id) {
           // I'm the learner and my call was accepted!
-          // LivePage will handle the video call for caller side
-          console.log('✅ CALLER: My call was accepted! LivePage will handle video...')
+          console.log('✅ CALLER: My call was accepted!')
+
+          // Handle different session modes for caller
+          if (session.mode === 'live') {
+            // Start video call for live sessions
+            setCurrentSession(session)
+            setCallState('connected')
+            await startVideoCall(session.id.toString(), session)
+            showInfo('Call Accepted!', 'Video session started!')
+          } else if (session.mode === 'coding') {
+            // For coding sessions, redirect to live page
+            showInfo('Coding Session Accepted!', 'Redirecting to collaborative coding session...')
+            console.log('✅ CALLER: Coding session accepted - redirecting to live page')
+            
+            // Check if we're already on the live page
+            const currentPath = typeof window !== 'undefined' ? window.location.pathname : ''
+            if (currentPath !== '/live') {
+              // Redirect to live page where collaborative coding interface will be rendered
+              setTimeout(() => {
+                router.push('/live?from=call-accepted')
+              }, 1000) // Small delay to show the success message
+            } else {
+              console.log('✅ CALLER: Already on live page, triggering session check...')
+              // If already on live page, trigger a session check
+              setTimeout(() => {
+                const event = new CustomEvent('checkForActiveSession')
+                window.dispatchEvent(event)
+              }, 500)
+            }
+          }
 
         } else if (session.status === 'ended' && (callState === 'connected' || callState === 'incoming')) {
           console.log('📞 Call ended by other party via database update')
@@ -324,7 +370,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     // Handle page unload/refresh - end call gracefully
     const handleBeforeUnload = async (event: BeforeUnloadEvent) => {
       if (callState === 'connected' && currentSession) {
-        // End the call in the database
+        console.log('🔄 Page unloading during active call - ending gracefully...')
+        
+        // End the call in the database immediately
         await supabase
           .from('sessions')
           .update({
@@ -333,14 +381,30 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           })
           .eq('id', currentSession.id)
 
-        // Send end call signal via Supabase
+        // Send end call signal via Supabase to notify other party
         if (sessionPeerClient && globalSignaling) {
           const otherPeerId = currentSession.learner_id === user?.id 
             ? `${currentSession.host_id}-session-${currentSession.id}`
             : `${currentSession.learner_id}-session-${currentSession.id}`
           
+          console.log('📡 Sending call end signal due to page unload to:', otherPeerId)
           await globalSignaling.sendCallEnded(otherPeerId)
         }
+
+        // Broadcast session end via realtime channel
+        const sessionChannel = supabase.channel(`session-${currentSession.id}`)
+        await sessionChannel.send({
+          type: 'broadcast',
+          event: 'call_ended_by_refresh',
+          payload: {
+            endedBy: user?.id,
+            reason: 'Page refreshed or closed',
+            timestamp: Date.now()
+          }
+        })
+
+        // Clean up immediately
+        await cleanupCall('Page unloaded')
 
         event.preventDefault()
         event.returnValue = 'You are currently in a video call. Are you sure you want to leave?'
@@ -348,15 +412,49 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    // Handle page visibility change (tab switch, minimize, etc.)
+    const handleVisibilityChange = async () => {
+      if (document.hidden && callState === 'connected' && currentSession) {
+        console.log('👁️ Page hidden during call - user might be leaving...')
+        // Don't end call immediately on visibility change, just log it
+      } else if (!document.hidden && callState === 'connected') {
+        console.log('👁️ Page visible again during call')
+      }
+    }
+
     window.addEventListener('beforeunload', handleBeforeUnload)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    // Subscribe to call end broadcasts from other users
+    const callEndChannel = supabase
+      .channel(`call-end-listener-${user.id}`)
+      .on('broadcast', { event: 'call_ended_by_refresh' }, async (payload) => {
+        console.log('📞 Received call end broadcast:', payload.payload)
+        
+        if (payload.payload.endedBy !== user?.id && callState === 'connected') {
+          console.log('📞 Other party ended call by refresh/close')
+          await cleanupCall('Other party left the session')
+        }
+      })
+      .on('broadcast', { event: 'call_ended_by_user' }, async (payload) => {
+        console.log('📞 Received user call end broadcast:', payload.payload)
+        
+        if (payload.payload.endedBy !== user?.id && callState === 'connected') {
+          console.log('📞 Other party ended call manually')
+          await cleanupCall('Other party ended the call')
+        }
+      })
+      .subscribe()
 
     return () => {
       console.log('🔌 Unsubscribing from global call channels')
       incomingCallsChannel.unsubscribe()
       sessionUpdatesChannel.unsubscribe()
+      callEndChannel.unsubscribe()
 
-      // Remove beforeunload listener
+      // Remove event listeners
       window.removeEventListener('beforeunload', handleBeforeUnload)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
 
       // Stop ring sound
       if (ringAudioRef.current) {
@@ -410,10 +508,35 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       setCurrentSession(updatedSession)
       setCallState('connected')
 
-      // Start video call directly with session data
-      await startVideoCall(updatedSession.id.toString(), updatedSession)
-
-      showInfo('Call Accepted!', 'Video session started!')
+      // Handle different session modes
+      if (updatedSession.mode === 'live') {
+        // Start video call for live sessions
+        await startVideoCall(updatedSession.id.toString(), updatedSession)
+        showInfo('Call Accepted!', 'Video session started!')
+      } else if (updatedSession.mode === 'coding') {
+        // For coding sessions, redirect to live page to show collaborative coding interface
+        showInfo('Coding Session Accepted!', 'Redirecting to collaborative coding session...')
+        console.log('✅ Coding session accepted - redirecting to live page')
+        
+        // Check if we're already on the live page to prevent unnecessary redirects
+        const currentPath = typeof window !== 'undefined' ? window.location.pathname : ''
+        if (currentPath !== '/live') {
+          // Redirect to live page where collaborative coding interface is rendered
+          setTimeout(() => {
+            router.push('/live')
+          }, 1000) // Small delay to show the success message
+        } else {
+          console.log('✅ Already on live page, triggering session update')
+          
+          // Emit custom event to notify live page about the accepted session
+          if (typeof window !== 'undefined') {
+            const event = new CustomEvent('codingSessionAccepted', {
+              detail: { session: updatedSession }
+            })
+            window.dispatchEvent(event)
+          }
+        }
+      }
 
     } catch (error) {
       console.error('Error accepting call:', error)
@@ -472,8 +595,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Invalid session data: missing learner_id')
       }
 
-      // Get local media stream (video + audio)
-      const stream = await peerClient.getLocalStream()
+      // Initialize peer client and get local media stream (video + audio)
+      const initializedPeerClient = await initializePeerClientWhenNeeded()
+      const stream = await initializedPeerClient.getLocalStream()
       setLocalStream(stream)
       console.log('✅ Got local media stream with tracks:', stream.getTracks().map(t => `${t.kind}: ${t.label}`))
 
@@ -506,8 +630,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       // CRITICAL FIX: Reset and create new peer client with session-specific ID
       console.log('🔄 Resetting peer client for session-specific ID')
 
-      // Disconnect existing peer client
-      peerClient.disconnect()
+      // Disconnect existing peer client if it exists
+      if (peerClient) {
+        peerClient.disconnect()
+      }
 
       // Create new peer client with correct ID
       const { resetPeerClient, getPeerClient } = await import('@/lib/peerClient')
@@ -656,6 +782,21 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           console.log('📡 Sending call end signal to:', otherPeerId)
           await globalSignaling.sendCallEnded(otherPeerId)
         }
+
+        // Broadcast call end to other party via realtime channel
+        const sessionChannel = supabase.channel(`session-${currentSession.id}`)
+        await sessionChannel.send({
+          type: 'broadcast',
+          event: 'call_ended_by_user',
+          payload: {
+            endedBy: user?.id,
+            reason: 'User ended the call',
+            timestamp: Date.now()
+          }
+        })
+        
+        // Unsubscribe from the session channel
+        await sessionChannel.unsubscribe()
       }
 
       // Clean up everything
@@ -685,7 +826,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }
     
     // Also disconnect global peer client to be safe
-    peerClient.disconnect()
+    if (peerClient) {
+      peerClient.disconnect()
+      setPeerClient(null) // Reset to null so it can be re-initialized later
+    }
 
     // Stop all media tracks
     if (localStream) {
@@ -807,13 +951,14 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         <IncomingCallOverlay
           learnerName={incomingCall.learnerName}
           skillName={incomingCall.skillName}
+          sessionMode={incomingCall.sessionMode || 'coding'}
           onAccept={acceptCall}
           onReject={rejectCall}
         />
       )}
 
-      {/* Global video call interface */}
-      {callState === 'connected' && (
+      {/* Video call interface only for live sessions */}
+      {callState === 'connected' && currentSession?.mode === 'live' && (
         <div className="fixed inset-0 z-[9999] bg-black flex flex-col">
           {/* Video containers */}
           <div className="flex-1 relative">

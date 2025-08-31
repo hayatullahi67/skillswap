@@ -17,6 +17,19 @@ export const initSupabaseSignaling = (sessionId: number, myPeerId: string) => {
     peerClient.handleIncomingSignal(message.from, message.signal.data)
   })
 
+  // Handle incoming call end signals
+  signaling.onCallEnd((fromPeerId) => {
+    console.log('📞 Received call end signal from:', fromPeerId)
+    
+    // Emit custom event for call provider to handle
+    if (typeof window !== 'undefined') {
+      const event = new CustomEvent('callEndedByPeer', {
+        detail: { peerId: fromPeerId, reason: 'remote_call_end' }
+      })
+      window.dispatchEvent(event)
+    }
+  })
+
   // Handle outgoing signals from peer client
   peerClient.onSignal((to, signalData) => {
     console.log('📡 Sending signal via Realtime:', { to, type: signalData.type })

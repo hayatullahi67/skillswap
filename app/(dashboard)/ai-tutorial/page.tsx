@@ -627,6 +627,7 @@ export default function AITutorialPage() {
           </p>
         </div>
 
+
         <Card>
           <CardHeader>
             <CardTitle>Choose a Skill to Learn</CardTitle>
@@ -712,7 +713,7 @@ export default function AITutorialPage() {
   if (!tutorial) return null
 
   return (
-    <div className="flex flex-col h-screen max-w-4xl mx-auto">
+    <div className="flex flex-col h-screen max-w-4xl mt-[60px] mx-auto ">
       {/* Header */}
       <div className="border-b bg-white p-4 flex items-center justify-between">
         <div className="flex items-center space-x-3">
@@ -870,7 +871,7 @@ export default function AITutorialPage() {
                   <Button
                     key={index}
                     variant="outline"
-                    className="w-full justify-start h-auto p-3 text-left"
+                    className="w-full justify-start h-auto p-3 text-left whitespace-normal  break-words"
                     onClick={() => submitQuiz(index)}
                   >
                     <span className="mr-3 font-semibold text-blue-500">
@@ -898,7 +899,7 @@ export default function AITutorialPage() {
                   onClick={handleBreakDownTopic}
                   variant="outline"
                   disabled={showBreakDown}
-                  className="border-orange-300 text-orange-600 hover:bg-orange-50"
+                  className="border-orange-300 text-orange-600 hover:bg-orange-50 max-sm:hidden"
                 >
                   {showBreakDown ? 'Breaking down...' : 'Break it down'}
                   <MessageCircle className="h-4 w-4 ml-1" />
@@ -959,7 +960,7 @@ export default function AITutorialPage() {
                 value={userInput}
                 onChange={(e) => setUserInput(e.target.value)}
                 placeholder="Ask a question about this topic..."
-                className="flex-1"
+                className="flex-1  max-md:flex"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && userInput.trim()) {
                     handleFollowUpQuestion(userInput)

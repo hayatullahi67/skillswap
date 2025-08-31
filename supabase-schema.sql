@@ -25,9 +25,9 @@ create table sessions (
     host_id uuid references profiles(id) on delete set null,
     learner_id uuid references profiles(id) on delete set null,
     skill_name text not null,
-    mode text check (mode in ('live', 'tutorial')), -- 'live' or 'tutorial'
+    mode text check (mode in ('live', 'tutorial', 'coding')), -- 'live', 'tutorial', or 'coding'
     status text check (status in ('pending', 'accepted', 'rejected', 'ended')) default 'pending',
-    room_id text, -- PeerJS room ID for video calls
+    room_id text, -- PeerJS room ID for video calls or coding session ID
     created_at timestamp default now(),
     started_at timestamp, -- when call was accepted
     ended_at timestamp

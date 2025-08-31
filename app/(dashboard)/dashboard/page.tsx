@@ -101,7 +101,7 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">
+          <h1 className="text-3xl font-bold max-md:mt-[40px] max-md:text-2xl">
             Welcome back{profile ? `, ${profile.name}` : ''}!
           </h1>
           <p className="text-muted-foreground">

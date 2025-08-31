@@ -3,7 +3,7 @@ import { supabase } from './supabaseClient'
 import { RealtimeChannel } from '@supabase/supabase-js'
 
 export interface SignalData {
-  type: 'offer' | 'answer' | 'ice-candidate'
+  type: 'offer' | 'answer' | 'ice-candidate' | 'call-ended'
   data: any
 }
 
@@ -19,6 +19,7 @@ export class RealtimeSignaling {
   private sessionId: number | null = null
   private myPeerId: string
   private onSignalCallback?: (message: SignalMessage) => void
+  private onCallEndCallback?: (fromPeerId: string) => void
 
   constructor(myPeerId: string) {
     this.myPeerId = myPeerId
@@ -88,6 +89,15 @@ export class RealtimeSignaling {
       type: payload.signal.type
     })
 
+    // Handle call end signals specially
+    if (payload.signal.type === 'call-ended') {
+      console.log('📞 Received call end signal from:', payload.from)
+      if (this.onCallEndCallback) {
+        this.onCallEndCallback(payload.from)
+      }
+      return
+    }
+
     const message: SignalMessage = {
       from: payload.from,
       to: payload.to,
@@ -103,6 +113,40 @@ export class RealtimeSignaling {
   // Set callback for incoming signals
   onSignal(callback: (message: SignalMessage) => void): void {
     this.onSignalCallback = callback
+  }
+
+  // Set callback for call end signals
+  onCallEnd(callback: (fromPeerId: string) => void): void {
+    this.onCallEndCallback = callback
+  }
+
+  // Send call end signal to a specific peer
+  async sendCallEnded(to: string): Promise<void> {
+    console.log('📞 Sending call end signal to:', to)
+    
+    try {
+      await this.sendSignal(to, {
+        type: 'call-ended',
+        data: { reason: 'call_ended', timestamp: Date.now() }
+      })
+      console.log('✅ Call end signal sent successfully')
+    } catch (error) {
+      console.error('❌ Failed to send call end signal:', error)
+      throw error
+    }
+  }
+
+  // Check if signaling is connected
+  isConnected(): boolean {
+    return this.channel !== null && this.sessionId !== null
+  }
+
+  // Get session info for debugging
+  getSessionInfo(): { sessionId: number | null, myPeerId: string } {
+    return {
+      sessionId: this.sessionId,
+      myPeerId: this.myPeerId
+    }
   }
 
   // Disconnect and cleanup

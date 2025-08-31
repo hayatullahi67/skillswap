@@ -29,7 +29,7 @@
 //   async getLocalStream(): Promise<MediaStream> {
 //     try {
 //       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-      
+
 //       const videoConstraints = isMobile ? {
 //         width: { ideal: 320, max: 640 },
 //         height: { ideal: 240, max: 480 },
@@ -58,10 +58,10 @@
 //         video: videoConstraints,
 //         audio: audioConstraints
 //       })
-      
+
 //       console.log('✅ Got media stream')
 //       return this.localStream
-      
+
 //     } catch (error) {
 //       console.error('❌ Media access failed:', error)
 //       throw new Error('Unable to access camera or microphone. Please check permissions.')
@@ -75,7 +75,7 @@
 //     }
 
 //     console.log(`🔗 Creating connection to peer: ${peerId}`)
-    
+
 //     const peer = new (SimplePeer as any)({
 //       initiator: true,
 //       trickle: false, // Disable trickling for better mobile support
@@ -95,7 +95,7 @@
 
 //     this.setupPeerEventHandlers(peer, peerId, true)
 //     this.connections.set(peerId, { id: peerId, peer, isInitiator: true })
-    
+
 //     // Check if we have pending signals for this peer
 //     const pendingSignals = this.pendingSignals.get(peerId) || []
 //     pendingSignals.forEach(signal => {
@@ -103,7 +103,7 @@
 //       peer.signal(signal)
 //     })
 //     this.pendingSignals.delete(peerId)
-    
+
 //     return peer
 //   }
 
@@ -114,7 +114,7 @@
 //     }
 
 //     console.log(`📞 Accepting connection from peer: ${peerId}`)
-    
+
 //     const peer = new (SimplePeer as any)({
 //       initiator: false,
 //       trickle: false, // Disable trickling for better mobile support
@@ -134,18 +134,18 @@
 
 //     this.setupPeerEventHandlers(peer, peerId, false)
 //     this.connections.set(peerId, { id: peerId, peer, isInitiator: false })
-    
+
 //     // Signal the peer with the offer immediately
 //     console.log(`📡 Signaling peer with offer: ${peerId}`)
 //     peer.signal(offerSignal)
-    
+
 //     return peer
 //   }
 
 //   // Handle incoming signals (this is the key to making it work!)
 //   handleIncomingSignal(fromPeerId: string, signalData: any): void {
 //     console.log(`📡 Received signal from: ${fromPeerId}`, signalData.type)
-    
+
 //     const connection = this.connections.get(fromPeerId)
 //     if (connection) {
 //       // We have an active connection, signal it directly
@@ -168,7 +168,7 @@
 
 //     peer.on('stream', (remoteStream: MediaStream) => {
 //       console.log(`🎉 Received stream from peer: ${peerId}`)
-      
+
 //       const connection = this.connections.get(peerId)
 //       if (connection) {
 //         connection.remoteStream = remoteStream
@@ -202,10 +202,10 @@
 //   // Handle outgoing signals - you need to implement this in your app
 //   private handleOutgoingSignal(peerId: string, signalData: any) {
 //     console.log(`📡 Outgoing signal to peer: ${peerId}`, signalData.type)
-    
+
 //     // This is where you'd send the signal to the other peer
 //     // You need to implement this based on your signaling mechanism
-    
+
 //     // For now, let's emit a custom event that your app can listen to
 //     const event = new CustomEvent('peerSignal', {
 //       detail: { to: peerId, signal: signalData }
@@ -242,10 +242,10 @@
 //       if (this.localStream) {
 //         const videoTrack = this.localStream.getVideoTracks()[0]
 //         if (videoTrack) videoTrack.enabled = isVideoEnabled
-        
+
 //         const audioTrack = this.localStream.getAudioTracks()[0]
 //         if (audioTrack) audioTrack.enabled = isAudioEnabled
-        
+
 //         console.log(`📹 Video: ${isVideoEnabled}, 🎤 Audio: ${isAudioEnabled}`)
 //       }
 //     } catch (error) {
@@ -256,7 +256,7 @@
 //   async checkConnectionHealth(): Promise<{ status: string, details: any }> {
 //     try {
 //       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-      
+
 //       if (!this.isInitialized) {
 //         return { status: 'not_initialized', details: 'Peer client not initialized' }
 //       }
@@ -296,15 +296,15 @@
 //     try {
 //       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
 //       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
-      
+
 //       console.log('🧪 Testing Simple-Peer mobile connection...')
 //       console.log(`📱 Device: ${isMobile ? 'Mobile' : 'Desktop'}`)
 //       console.log(`🍎 iOS: ${isIOS}`)
-      
+
 //       if (!this.isInitialized) {
 //         return 'Test failed: Peer client not initialized'
 //       }
-      
+
 //       if (this.localStream) {
 //         const videoTracks = this.localStream.getVideoTracks()
 //         const audioTracks = this.localStream.getAudioTracks()
@@ -313,12 +313,12 @@
 //           audioTracks: audioTracks.length
 //         })
 //       }
-      
+
 //       const activeConnections = this.getActiveConnections()
 //       console.log('🔗 Active connections:', activeConnections.length)
-      
+
 //       return `Simple-Peer test completed. Device: ${isMobile ? 'Mobile' : 'Desktop'}, iOS: ${isIOS}, Connections: ${activeConnections.length}`
-      
+
 //     } catch (error) {
 //       console.error('❌ Simple-Peer test failed:', error)
 //       return `Test failed: ${error}`
@@ -335,19 +335,19 @@
 
 //   disconnect(): void {
 //     console.log('🛑 Disconnecting all peers...')
-    
+
 //     this.connections.forEach((connection) => {
 //       connection.peer.destroy()
 //     })
-    
+
 //     this.connections.clear()
 //     this.pendingSignals.clear()
-    
+
 //     if (this.localStream) {
 //       this.localStream.getTracks().forEach(track => track.stop())
 //       this.localStream = null
 //     }
-    
+
 //     this.isInitialized = false
 //     console.log('✅ All connections disconnected')
 //   }
@@ -380,7 +380,7 @@ export class PeerClient {
   constructor(customPeerId?: string) {
     // Use custom peer ID if provided, otherwise generate one
     this.myPeerId = customPeerId || 'peer_' + Math.random().toString(36).substring(2, 15)
-    
+
     // Only set up browser-specific listeners if we're in the browser
     if (typeof window !== 'undefined') {
       this.setupBrowserListeners()
@@ -416,10 +416,10 @@ export class PeerClient {
     this.onSignalCallback = callback
   }
 
-  async initialize(): Promise<void> {
+  async initialize(forceFreshPermission: boolean = false): Promise<void> {
     try {
       console.log('🚀 Initializing Simple-Peer client...')
-      await this.getLocalStream()
+      await this.getLocalStream(forceFreshPermission)
       this.isInitialized = true
       console.log('✅ Simple-Peer client initialized successfully')
     } catch (error) {
@@ -428,54 +428,55 @@ export class PeerClient {
     }
   }
 
-  async getLocalStream(): Promise<MediaStream> {
+  async getLocalStream(forceFreshPermission: boolean = false): Promise<MediaStream> {
     try {
       // Check if we're in a browser environment
       if (typeof navigator === 'undefined' || !navigator.mediaDevices) {
         throw new Error('Not in browser environment or no media devices available')
       }
 
+      // Stop existing stream if forcing fresh permission
+      if (forceFreshPermission && this.localStream) {
+        console.log('🔄 Stopping existing stream to force fresh permission request')
+        this.localStream.getTracks().forEach(track => track.stop())
+        this.localStream = null
+      }
+
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-      
-      const videoConstraints = isMobile ? {
-        width: { ideal: 320, max: 640 },
-        height: { ideal: 240, max: 480 },
-        frameRate: { ideal: 10, max: 15 },
-        facingMode: 'user'
-      } : {
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        frameRate: { ideal: 30 }
-      }
 
-      const audioConstraints = isMobile ? {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-        sampleRate: 8000,
-        channelCount: 1
-      } : {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-        sampleRate: 44100
-      }
+      console.log(`🎤 Requesting microphone access (fresh: ${forceFreshPermission})...`)
 
+      // Simplified audio constraints - let browser decide optimal settings
       this.localStream = await navigator.mediaDevices.getUserMedia({
-        video: videoConstraints,
-        audio: audioConstraints
+        video: false, // Only request audio for collaborative coding
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+          // Removed sampleRate and channelCount - let browser decide
+        }
       })
-      
+
       console.log('✅ Got media stream', {
         videoTracks: this.localStream.getVideoTracks().length,
-        audioTracks: this.localStream.getAudioTracks().length
+        audioTracks: this.localStream.getAudioTracks().length,
+        freshPermission: forceFreshPermission
       })
-      
+
       return this.localStream
-      
+
     } catch (error) {
       console.error('❌ Media access failed:', error)
-      throw new Error('Unable to access camera or microphone. Please check permissions.')
+
+      // Provide more specific error messages
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      if (errorMsg.includes('Permission denied') || errorMsg.includes('NotAllowedError')) {
+        throw new Error('Microphone access denied. Please allow microphone access and try again.')
+      } else if (errorMsg.includes('NotFoundError') || errorMsg.includes('not found')) {
+        throw new Error('No microphone found. Please check your audio devices.')
+      } else {
+        throw new Error('Unable to access microphone. Please check microphone permissions.')
+      }
     }
   }
 
@@ -486,7 +487,7 @@ export class PeerClient {
     }
 
     console.log(`🔗 Creating connection to peer: ${peerId}`)
-    
+
     const peer = new (SimplePeer as any)({
       initiator: true,
       trickle: true, // Enable trickling for better connectivity
@@ -500,7 +501,7 @@ export class PeerClient {
           { urls: 'stun:stun2.l.google.com:19302' },
           { urls: 'stun:stun3.l.google.com:19302' },
           { urls: 'stun:stun4.l.google.com:19302' },
-          
+
           // Multiple TURN servers for NAT traversal
           {
             urls: 'turn:openrelay.metered.ca:80',
@@ -517,7 +518,7 @@ export class PeerClient {
             username: 'openrelayproject',
             credential: 'openrelayproject'
           },
-          
+
           // Additional reliable TURN servers
           {
             urls: 'turn:numb.viagenie.ca',
@@ -536,7 +537,7 @@ export class PeerClient {
 
     this.setupPeerEventHandlers(peer, peerId, true)
     this.connections.set(peerId, { id: peerId, peer, isInitiator: true })
-    
+
     // Apply any pending signals
     const pendingSignals = this.pendingSignals.get(peerId) || []
     pendingSignals.forEach(signal => {
@@ -544,7 +545,7 @@ export class PeerClient {
       peer.signal(signal)
     })
     this.pendingSignals.delete(peerId)
-    
+
     return peer
   }
 
@@ -555,7 +556,7 @@ export class PeerClient {
     }
 
     console.log(`📞 Accepting connection from peer: ${peerId}`)
-    
+
     const peer = new (SimplePeer as any)({
       initiator: false,
       trickle: true, // Enable trickling
@@ -568,7 +569,7 @@ export class PeerClient {
           { urls: 'stun:stun2.l.google.com:19302' },
           { urls: 'stun:stun3.l.google.com:19302' },
           { urls: 'stun:stun4.l.google.com:19302' },
-          
+
           // Multiple TURN servers for NAT traversal
           {
             urls: 'turn:openrelay.metered.ca:80',
@@ -585,7 +586,7 @@ export class PeerClient {
             username: 'openrelayproject',
             credential: 'openrelayproject'
           },
-          
+
           // Additional reliable TURN servers
           {
             urls: 'turn:numb.viagenie.ca',
@@ -604,24 +605,24 @@ export class PeerClient {
 
     this.setupPeerEventHandlers(peer, peerId, false)
     this.connections.set(peerId, { id: peerId, peer, isInitiator: false })
-    
+
     // If caller passed the offer, signal immediately
     if (offerSignal) {
       peer.signal(offerSignal)
     }
-    
+
     // Also apply any pending signals we buffered earlier (including the offer)
     const pending = this.pendingSignals.get(peerId) || []
     pending.forEach(sig => peer.signal(sig))
     this.pendingSignals.delete(peerId)
-    
+
     return peer
   }
 
   // Handle incoming signals
   handleIncomingSignal(fromPeerId: string, signalData: any): void {
     console.log(`📡 Received signal from: ${fromPeerId}`, signalData.type)
-    
+
     const connection = this.connections.get(fromPeerId)
     if (connection) {
       console.log(`📡 Signaling existing connection: ${fromPeerId}`)
@@ -637,7 +638,7 @@ export class PeerClient {
         this.pendingSignals.set(fromPeerId, [])
       }
       this.pendingSignals.get(fromPeerId)!.push(signalData)
-      
+
       // If it's an offer, notify the app about the incoming call attempt
       if (signalData.type === 'offer' && this.onIncomingOfferCallback) {
         console.log(`📞 Notifying app about incoming offer from: ${fromPeerId}`)
@@ -649,12 +650,12 @@ export class PeerClient {
   private setupPeerEventHandlers(peer: SimplePeer.Instance, peerId: string, isInitiator: boolean) {
     peer.on('connect', () => {
       console.log(`🔗 Connected to peer: ${peerId}`)
-      
+
       // Check if we already have a remote stream for this connection
       const connection = this.connections.get(peerId)
       if (connection && connection.remoteStream) {
         console.log(`📹 Connection established, remote stream already available for: ${peerId}`)
-        
+
         // Re-trigger the callback to ensure UI is updated
         if (this.onIncomingCallCallback) {
           this.onIncomingCallCallback(peerId, connection.remoteStream)
@@ -668,7 +669,7 @@ export class PeerClient {
         audioTracks: remoteStream.getAudioTracks().length,
         streamId: remoteStream.id
       })
-      
+
       // CRITICAL: Verify it's not our own local stream
       if (this.localStream && remoteStream.id === this.localStream.id) {
         console.error('❌ Received local stream instead of remote! Ignoring...', {
@@ -677,12 +678,12 @@ export class PeerClient {
         })
         return
       }
-      
+
       // Additional check: compare track IDs to be extra sure
       const localVideoTrackIds = this.localStream?.getVideoTracks().map(t => t.id) || []
       const remoteVideoTrackIds = remoteStream.getVideoTracks().map(t => t.id)
       const hasMatchingTracks = localVideoTrackIds.some(id => remoteVideoTrackIds.includes(id))
-      
+
       if (hasMatchingTracks) {
         console.error('❌ Remote stream has matching track IDs with local stream! Ignoring...', {
           localVideoTrackIds,
@@ -690,7 +691,7 @@ export class PeerClient {
         })
         return
       }
-      
+
       // Log and fix track states
       remoteStream.getVideoTracks().forEach((track, index) => {
         console.log(`📹 Video track ${index}:`, {
@@ -700,14 +701,14 @@ export class PeerClient {
           readyState: track.readyState,
           muted: track.muted
         })
-        
+
         // Force enable tracks if they're disabled
         if (!track.enabled) {
           console.log(`🔧 Enabling disabled video track ${index}`)
           track.enabled = true
         }
       })
-      
+
       remoteStream.getAudioTracks().forEach((track, index) => {
         console.log(`🎤 Audio track ${index}:`, {
           id: track.id,
@@ -716,14 +717,14 @@ export class PeerClient {
           readyState: track.readyState,
           muted: track.muted
         })
-        
+
         // Force enable tracks if they're disabled
         if (!track.enabled) {
           console.log(`🔧 Enabling disabled audio track ${index}`)
           track.enabled = true
         }
       })
-      
+
       const connection = this.connections.get(peerId)
       if (connection) {
         connection.remoteStream = remoteStream
@@ -752,7 +753,7 @@ export class PeerClient {
     peer.on('close', () => {
       console.log(`🔌 Connection closed with peer: ${peerId}`)
       this.connections.delete(peerId)
-      
+
       // Emit custom event for call provider to handle
       if (typeof window !== 'undefined') {
         const event = new CustomEvent('peerDisconnected', {
@@ -764,7 +765,10 @@ export class PeerClient {
 
     peer.on('error', (error: Error) => {
       console.error(`❌ Error with peer ${peerId}:`, error)
-      
+
+      // Clean up connection on error
+      this.connections.delete(peerId)
+
       // Emit custom event for serious errors
       if (typeof window !== 'undefined') {
         const event = new CustomEvent('peerError', {
@@ -773,12 +777,29 @@ export class PeerClient {
         window.dispatchEvent(event)
       }
     })
+
+    // Handle ICE connection state changes for better disconnect detection
+    peer.on('iceStateChange', (state: string) => {
+      console.log(`🧊 ICE state for peer ${peerId}:`, state)
+
+      if (state === 'disconnected' || state === 'failed' || state === 'closed') {
+        console.log(`🔌 ICE connection ${state} for peer: ${peerId}`)
+
+        // Emit disconnect event for failed/closed states
+        if ((state === 'failed' || state === 'closed') && typeof window !== 'undefined') {
+          const event = new CustomEvent('peerDisconnected', {
+            detail: { peerId, reason: `ice_${state}` }
+          })
+          window.dispatchEvent(event)
+        }
+      }
+    })
   }
 
   // Updated signal handling
   private handleOutgoingSignal(peerId: string, signalData: any) {
     console.log(`📡 Outgoing signal to peer: ${peerId}`, signalData.type)
-    
+
     if (this.onSignalCallback) {
       this.onSignalCallback(peerId, signalData)
     } else {
@@ -842,7 +863,7 @@ export class PeerClient {
       videoEnabled: this.localStream.getVideoTracks().map(t => t.enabled),
       audioEnabled: this.localStream.getAudioTracks().map(t => t.enabled)
     } : 'None')
-    
+
     console.log('- Connections:', this.connections.size)
     this.connections.forEach((connection, peerId) => {
       console.log(`  ${peerId}:`, {
@@ -879,10 +900,10 @@ export class PeerClient {
       if (this.localStream) {
         const videoTrack = this.localStream.getVideoTracks()[0]
         if (videoTrack) videoTrack.enabled = isVideoEnabled
-        
+
         const audioTrack = this.localStream.getAudioTracks()[0]
         if (audioTrack) audioTrack.enabled = isAudioEnabled
-        
+
         console.log(`📹 Video: ${isVideoEnabled}, 🎤 Audio: ${isAudioEnabled}`)
       }
     } catch (error) {
@@ -900,31 +921,60 @@ export class PeerClient {
   }
 
   disconnect(): void {
-    console.log('🛑 Disconnecting all peers...')
-    
+    console.log('🛑 Disconnecting all peers and clearing permissions...')
+
     this.connections.forEach((connection) => {
       connection.peer.destroy()
     })
-    
+
     this.connections.clear()
     this.pendingSignals.clear()
-    
+
     if (this.localStream) {
-      this.localStream.getTracks().forEach(track => track.stop())
+      this.localStream.getTracks().forEach(track => {
+        track.stop()
+        console.log(`🛑 Stopped and cleared track: ${track.kind} - ${track.id}`)
+      })
       this.localStream = null
     }
-    
+
     this.isInitialized = false
-    console.log('✅ All connections disconnected')
+    console.log('✅ All connections disconnected and permissions cleared')
+  }
+
+  // Method to force clear all permissions and reset
+  clearAllPermissions(): void {
+    console.log('🧹 Force clearing all media permissions...')
+
+    // Disconnect all peers
+    this.disconnect()
+
+    // Additional cleanup for browser permission cache
+    if (typeof window !== 'undefined' && window.navigator && window.navigator.mediaDevices) {
+      // Note: There's no direct way to revoke permissions via JS for security reasons
+      // But stopping all tracks should release the permission state
+      console.log('🧹 Media permissions cleanup completed')
+    }
   }
 }
 
 // Create singleton instance - but only in browser
 let peerClientInstance: PeerClient | null = null
+let sessionPeerClient: PeerClient | null = null
 
 export const getPeerClient = (customPeerId?: string): PeerClient => {
+  if (customPeerId) {
+    // Create session-specific peer client
+    if (sessionPeerClient) {
+      sessionPeerClient.disconnect()
+    }
+    sessionPeerClient = new PeerClient(customPeerId)
+    return sessionPeerClient
+  }
+
+  // Return global peer client
   if (!peerClientInstance) {
-    peerClientInstance = new PeerClient(customPeerId)
+    peerClientInstance = new PeerClient()
   }
   return peerClientInstance
 }
@@ -935,4 +985,14 @@ export const resetPeerClient = (): void => {
     peerClientInstance.disconnect()
   }
   peerClientInstance = null
+
+  if (sessionPeerClient) {
+    sessionPeerClient.disconnect()
+  }
+  sessionPeerClient = null
+}
+
+// Get the current session peer client
+export const getSessionPeerClient = (): PeerClient | null => {
+  return sessionPeerClient
 }

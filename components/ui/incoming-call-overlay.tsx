@@ -2,28 +2,34 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Phone, PhoneOff } from 'lucide-react'
+import { Phone, PhoneOff, Code, Monitor } from 'lucide-react'
 
 interface IncomingCallOverlayProps {
   learnerName: string
   skillName: string
+  sessionMode?: string
   onAccept: () => void
   onReject: () => void
 }
 
 export function IncomingCallOverlay({ 
   learnerName, 
-  skillName, 
+  skillName,
+  sessionMode = 'live',
   onAccept, 
   onReject 
 }: IncomingCallOverlayProps) {
+  const isCodingSession = sessionMode === 'coding'
+  
   return (
     <div className="fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center">
       <Card className="w-full max-w-md mx-4 animate-pulse">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">📞 Incoming Call</CardTitle>
+          <CardTitle className="text-2xl">
+            {isCodingSession ? '💻 Incoming Coding Session' : '📞 Incoming Call'}
+          </CardTitle>
           <CardDescription>
-            {learnerName} wants to learn {skillName}
+            {learnerName} wants to {isCodingSession ? 'code together and learn' : 'learn'} {skillName}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -33,8 +39,17 @@ export function IncomingCallOverlay({
               className="flex-1 bg-green-600 hover:bg-green-700"
               size="lg"
             >
-              <Phone className="h-4 w-4 mr-2" />
-              Accept
+              {isCodingSession ? (
+                <>
+                  <Monitor className="h-4 w-4 mr-2" />
+                  Start Coding
+                </>
+              ) : (
+                <>
+                  <Phone className="h-4 w-4 mr-2" />
+                  Accept
+                </>
+              )}
             </Button>
             <Button 
               onClick={onReject} 

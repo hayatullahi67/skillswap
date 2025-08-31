@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -8,8 +8,8 @@ import { AlertModal } from '@/components/ui/modal'
 import { useModal } from '@/hooks/useModal'
 import { useAppStore } from '@/lib/store'
 import { supabase } from '@/lib/supabaseClient'
-import { PhoneIncoming, PhoneOff, Search, Users } from 'lucide-react'
-import { useCall } from '@/components/providers/CallProvider'
+import { Search, Code, Monitor } from 'lucide-react'
+import CollaborativeCoding from '@/components/coding/CollaborativeCoding'
 
 type MatchedPeer = {
   id: string
@@ -18,10 +18,10 @@ type MatchedPeer = {
   isOnline?: boolean
 }
 
-type CallState = 'idle' | 'form' | 'searching' | 'matched' | 'calling' | 'connected'
+type CodingState = 'idle' | 'form' | 'searching' | 'matched' | 'connecting' | 'coding'
 
 export default function LivePage() {
-  const [callState, setCallState] = useState<CallState>('idle')
+  const [codingState, setCodingState] = useState<CodingState>('idle')
   const [currentSession, setCurrentSession] = useState<any>(null)
   const [matchedPeer, setMatchedPeer] = useState<MatchedPeer | null>(null)
   const [skillToLearn, setSkillToLearn] = useState('')
@@ -32,71 +32,134 @@ export default function LivePage() {
 
   const { user } = useAppStore()
   const { modalState, showError, showWarning, showInfo, closeModal } = useModal()
-  const { callState: globalCallState, startOutgoingCall } = useCall()
 
-  // Track if we were previously in a connected state
-  const [wasGloballyConnected, setWasGloballyConnected] = useState(false)
-
-  // Monitor global call state and reset local state when call ends
+  // Subscribe to session updates for coding session status
   useEffect(() => {
-    if (globalCallState === 'connected') {
-      // User is in a call, stay on this page to show the interface
-      console.log('📞 User is in a call, staying on live page')
-      setWasGloballyConnected(true)
-    } else if (globalCallState === 'idle' && wasGloballyConnected) {
-      // Call ended after being globally connected, reset local state
-      console.log('📞 Call ended, resetting live page state')
-      resetLivePageState()
-      setWasGloballyConnected(false)
-      showInfo('Session Completed', 'Your learning session has ended successfully. Hope you learned something new!')
+    if (!user) return
+
+    console.log('🔔 Setting up global session updates for user:', user.id)
+
+    // Listen for custom event when session is accepted while already on live page
+    const handleCodingSessionAccepted = async (event: any) => {
+      const session = event.detail.session
+      console.log('🎯 Received coding session accepted event:', session)
+
+      if (session.status === 'accepted' && session.mode === 'coding') {
+        console.log('✅ Processing accepted coding session from custom event')
+
+        // Set up the session data
+        setCurrentSession(session)
+
+        // Determine the peer info
+        const isHost = session.host_id === user.id
+        const peerId = isHost ? session.learner_id : session.host_id
+
+        // Get peer info
+        const { data: peerProfile } = await supabase
+          .from('profiles')
+          .select('name')
+          .eq('id', peerId)
+          .single()
+
+        const peerInfo = {
+          id: peerId,
+          name: peerProfile?.name || 'Unknown',
+          skill_name: session.skill_name,
+          isOnline: true
+        }
+
+        setMatchedPeer(peerInfo)
+        setCodingState('coding')
+
+        showInfo('Session Started!', 'Collaborative coding session is now active!')
+      }
     }
-  }, [globalCallState, wasGloballyConnected])
 
-  // Subscribe to session updates for call status (only for outgoing calls)
-  useEffect(() => {
-    if (!user || !currentSession) return
+    // Add event listener for custom coding session accepted event
+    window.addEventListener('codingSessionAccepted', handleCodingSessionAccepted)
 
-    console.log('🔔 Setting up session updates for outgoing call:', currentSession.id)
+    // Add event listener for manual session check trigger
+    const handleCheckForActiveSession = () => {
+      console.log('🔄 Manual session check triggered')
+      checkForActiveSession()
+    }
+    window.addEventListener('checkForActiveSession', handleCheckForActiveSession)
 
-    const sessionUpdatesChannel = supabase
-      .channel(`session-updates-${currentSession.id}`)
+    // Listen for any session updates where this user is involved
+    const globalSessionUpdatesChannel = supabase
+      .channel(`global-session-updates-${user.id}`)
       .on('postgres_changes', {
         event: 'UPDATE',
         schema: 'public',
         table: 'sessions',
-        filter: `id=eq.${currentSession.id}`
+        filter: `or(host_id.eq.${user.id},learner_id.eq.${user.id})`
       }, async (payload) => {
-        console.log('📱 Session status update:', payload.new)
+        console.log('💻 Global session status update:', payload.new)
 
         const session = payload.new
 
-        if (session.status === 'accepted') {
-          console.log('✅ Call accepted!')
-          showInfo('Call Accepted!', 'Starting video session...')
-          setCallState('connected')
-          // Start video call for caller using CallProvider
-          try {
-            await startOutgoingCall(session.id.toString(), session)
-          } catch (error) {
-            console.error('Failed to start outgoing call:', error)
-            showError('Video Error', 'Failed to start video call')
+        if (session.status === 'accepted' && session.mode === 'coding') {
+          console.log('✅ Coding session accepted!')
+
+          // Set up the session data
+          setCurrentSession(session)
+
+          // Determine the peer info
+          const isHost = session.host_id === user.id
+          const peerId = isHost ? session.learner_id : session.host_id
+
+          // Get peer info
+          const { data: peerProfile } = await supabase
+            .from('profiles')
+            .select('name')
+            .eq('id', peerId)
+            .single()
+
+          const peerInfo = {
+            id: peerId,
+            name: peerProfile?.name || 'Unknown',
+            skill_name: session.skill_name,
+            isOnline: true
           }
-        } else if (session.status === 'rejected') {
-          console.log('❌ Call rejected')
-          setCallState('idle')
+
+          setMatchedPeer(peerInfo)
+          setCodingState('coding')
+
+          showInfo('Session Accepted!', 'Starting collaborative coding session...')
+          
+          // Log for debugging
+          console.log('🎯 LIVE PAGE: Session accepted and UI updated', {
+            sessionId: session.id,
+            isHost: session.host_id === user.id,
+            currentUser: user.id,
+            codingState: 'coding'
+          })
+
+        } else if (session.status === 'rejected' && (session.host_id === user.id || session.learner_id === user.id)) {
+          console.log('❌ Session rejected')
+          setCodingState('idle')
           setCurrentSession(null)
           setMatchedPeer(null)
-          showWarning('Call Rejected', 'The teacher declined your call.')
+          showWarning('Session Rejected', 'The coding session was declined.')
+        } else if (session.status === 'ended' && (session.host_id === user.id || session.learner_id === user.id)) {
+          console.log('📞 Session ended')
+          setCodingState('idle')
+          setCurrentSession(null)
+          setMatchedPeer(null)
+          showInfo('Session Ended', 'The coding session has ended.')
         }
       })
       .subscribe()
 
     return () => {
-      sessionUpdatesChannel.unsubscribe();
+      globalSessionUpdatesChannel.unsubscribe()
+      // Remove custom event listeners
+      window.removeEventListener('codingSessionAccepted', handleCodingSessionAccepted)
+      window.removeEventListener('checkForActiveSession', handleCheckForActiveSession)
     }
-  }, [currentSession])
+  }, [user])
 
-  // Load available skills when component mounts
+  // Load available skills and check for active sessions when component mounts
   useEffect(() => {
     const loadAvailableSkills = async () => {
       if (!user) return
@@ -117,14 +180,97 @@ export default function LivePage() {
       }
     }
 
+    const checkForActiveSession = async (retryCount = 0) => {
+      if (!user) return
+
+      try {
+        console.log('🔍 Checking for active coding sessions...', retryCount > 0 ? `(retry ${retryCount})` : '')
+
+        // Check for any accepted coding sessions where this user is involved
+        const { data: activeSessions, error } = await supabase
+          .from('sessions')
+          .select('*')
+          .or(`host_id.eq.${user.id},learner_id.eq.${user.id}`)
+          .eq('status', 'accepted')
+          .eq('mode', 'coding')
+
+        if (error) {
+          console.error('Error checking active sessions:', error)
+          return
+        }
+
+        if (activeSessions && activeSessions.length > 0) {
+          const session = activeSessions[0]
+          console.log('📱 Found active coding session:', session)
+
+          // Set up the session data
+          setCurrentSession(session)
+
+          // Determine the peer info
+          const isHost = session.host_id === user.id
+          const peerId = isHost ? session.learner_id : session.host_id
+
+          // Get peer info
+          const { data: peerProfile } = await supabase
+            .from('profiles')
+            .select('name')
+            .eq('id', peerId)
+            .single()
+
+          const peerInfo = {
+            id: peerId,
+            name: peerProfile?.name || 'Unknown',
+            skill_name: session.skill_name,
+            isOnline: true
+          }
+
+          setMatchedPeer(peerInfo)
+          setCodingState('coding')
+
+          showInfo('Session Resumed', 'Resuming your active coding session...')
+          
+          // Log for debugging
+          console.log('🎯 LIVE PAGE: Active session resumed', {
+            sessionId: session.id,
+            isHost: session.host_id === user.id,
+            currentUser: user.id,
+            codingState: 'coding',
+            peerInfo
+          })
+        } else if (retryCount < 3) {
+          // If no active session found and we haven't retried too many times, try again
+          // This handles the case where caller is redirected before session is fully updated
+          console.log('🔄 No active session found, retrying in 1 second...')
+          setTimeout(() => {
+            checkForActiveSession(retryCount + 1)
+          }, 1000)
+        }
+      } catch (error) {
+        console.error('Error checking for active session:', error)
+      }
+    }
+
     if (user) {
       loadAvailableSkills()
+      
+      // Check if user was redirected here after call acceptance
+      const urlParams = new URLSearchParams(window.location.search)
+      const fromCallAccepted = urlParams.get('from') === 'call-accepted'
+      
+      if (fromCallAccepted) {
+        console.log('🔄 User redirected from call acceptance, checking for session...')
+        // Add a small delay to ensure database is updated
+        setTimeout(() => {
+          checkForActiveSession()
+        }, 500)
+      } else {
+        checkForActiveSession()
+      }
     }
   }, [user])
 
-  // Placeholder functions - no real functionality yet
   const startLearningForm = () => {
-    setCallState('form')
+    setCodingState('form')
   }
 
   const findPeersForSkill = async () => {
@@ -133,7 +279,7 @@ export default function LivePage() {
       return
     }
 
-    setCallState('searching')
+    setCodingState('searching')
 
     try {
       console.log('🔍 Searching for teachers who can teach:', skillToLearn)
@@ -158,9 +304,9 @@ export default function LivePage() {
       console.log('📚 Found teaching skills:', teachingSkills)
 
       if (!teachingSkills || teachingSkills.length === 0) {
-        // No teachers found for this skill
-        setCallState('idle')
-        showInfo('No Teachers Available', `No teachers found for "${skillToLearn}". Try a different skill or check back later.`)
+        // No mentors found for this skill
+        setCodingState('idle')
+        showInfo('No Mentors Available', `No coding mentors found for "${skillToLearn}". Try a different skill or check back later.`)
         return
       }
 
@@ -210,18 +356,18 @@ export default function LivePage() {
         })
 
         setMatchedPeers(sortedPeers)
-        setCallState('matched')
-        showInfo('Teachers Found!', `Found ${availablePeers.length} teacher${availablePeers.length !== 1 ? 's' : ''} for "${skillToLearn}"`)
+        setCodingState('matched')
+        showInfo('Mentors Found!', `Found ${availablePeers.length} coding mentor${availablePeers.length !== 1 ? 's' : ''} for "${skillToLearn}"`)
       } else {
-        // Teachers exist but none have valid profiles
-        setCallState('idle')
-        showInfo('No Available Teachers', `Teachers for "${skillToLearn}" found but none are currently available. Try again later.`)
+        // Mentors exist but none have valid profiles
+        setCodingState('idle')
+        showInfo('No Available Mentors', `Coding mentors for "${skillToLearn}" found but none are currently available. Try again later.`)
       }
 
     } catch (error) {
       console.error('Error finding peers:', error)
-      setCallState('idle')
-      showError('Search Error', 'Failed to find teachers. Please check your connection and try again.')
+      setCodingState('idle')
+      showError('Search Error', 'Failed to find coding mentors. Please check your connection and try again.')
     }
   }
 
@@ -232,28 +378,28 @@ export default function LivePage() {
   const startSession = async () => {
     if (!selectedPeer) return
 
-    setCallState('calling')
+    setCodingState('connecting')
     setMatchedPeer(selectedPeer)
 
     try {
-      console.log('📞 Initiating call to:', selectedPeer.name)
+      console.log('💻 Initiating coding session with:', selectedPeer.name)
 
       // Step 1: Create session record in Supabase
-      console.log('📝 Creating session with data:', {
+      console.log('📝 Creating coding session with data:', {
         host_id: selectedPeer.id,
         learner_id: user?.id,
         skill_name: selectedPeer.skill_name,
-        mode: 'live',
+        mode: 'coding',
         status: 'pending'
       })
 
       const { data: session, error } = await supabase
         .from('sessions')
         .insert({
-          host_id: selectedPeer.id,        // Teacher (receiver)
-          learner_id: user?.id,            // Learner (caller)
+          host_id: selectedPeer.id,        // Mentor (receiver)
+          learner_id: user?.id,            // Learner (requester)
           skill_name: selectedPeer.skill_name,
-          mode: 'live',
+          mode: 'coding',
           status: 'pending'
         })
         .select()
@@ -261,11 +407,11 @@ export default function LivePage() {
 
       if (error) {
         console.error('❌ Error creating session:', error)
-        showError('Database Error', `Failed to create session: ${error.message}`)
+        showError('Database Error', `Failed to create coding session: ${error.message}`)
         throw error
       }
 
-      console.log('✅ Session created successfully:', session)
+      console.log('✅ Coding session created successfully:', session)
       setCurrentSession(session)
 
       // Verify the session was created by querying it back
@@ -281,13 +427,13 @@ export default function LivePage() {
         console.log('✅ Session verified in database:', verifySession)
       }
 
-      // Show calling state
-      showInfo('Calling...', `Calling ${selectedPeer.name} to teach ${selectedPeer.skill_name}`)
+      // Show connecting state
+      showInfo('Connecting...', `Requesting coding session with ${selectedPeer.name} for ${selectedPeer.skill_name}`)
 
     } catch (error) {
       console.error('Error starting session:', error)
-      showError('Call Failed', 'Failed to initiate call. Please try again.')
-      setCallState('matched') // Go back to matched state
+      showError('Session Failed', 'Failed to initiate coding session. Please try again.')
+      setCodingState('matched') // Go back to matched state
     }
   }
 
@@ -296,13 +442,13 @@ export default function LivePage() {
 
 
 
-  const cancelCall = async () => {
+  const cancelSession = async () => {
     if (!currentSession) return
 
     try {
-      console.log('🚫 Cancelling call...')
+      console.log('🚫 Cancelling coding session...')
 
-      // Update session status to rejected (cancelled by caller)
+      // Update session status to rejected (cancelled by requester)
       const { error } = await supabase
         .from('sessions')
         .update({
@@ -313,23 +459,23 @@ export default function LivePage() {
         .eq('status', 'pending')
 
       if (error) {
-        console.error('Error cancelling call:', error)
+        console.error('Error cancelling session:', error)
       } else {
-        console.log('✅ Call cancelled successfully')
+        console.log('✅ Session cancelled successfully')
       }
 
       // Reset state
-      setCallState('idle')
+      setCodingState('idle')
       setCurrentSession(null)
       setMatchedPeer(null)
 
-      showInfo('Call Cancelled', 'You cancelled the call.')
+      showInfo('Session Cancelled', 'You cancelled the coding session.')
 
     } catch (error) {
-      console.error('Error cancelling call:', error)
+      console.error('Error cancelling session:', error)
 
       // Reset state anyway
-      setCallState('idle')
+      setCodingState('idle')
       setCurrentSession(null)
       setMatchedPeer(null)
     }
@@ -337,91 +483,72 @@ export default function LivePage() {
 
   // Helper function to reset all live page state
   const resetLivePageState = () => {
-    setCallState('idle')
+    setCodingState('idle')
     setCurrentSession(null)
     setMatchedPeer(null)
     setMatchedPeers([])
     setSelectedPeer(null)
     setSkillToLearn('')
   }
-  // Incoming calls are handled by CallProvider
 
-  // Video effects removed - handled by CallProvider
-
-  // Video call interface completely removed - handled by CallProvider
+  const endCodingSession = () => {
+    resetLivePageState()
+    showInfo('Session Ended', 'Coding session has been ended.')
+  }
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
+    <div className={`${codingState === 'coding' ? 'p-0 max-w-none' : 'p-6 max-w-2xl mx-auto'}`}>
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold mb-2">Live SkillSwap</h1>
+        <h1 className="text-3xl font-bold mb-2">Live Coding Sessions</h1>
         <p className="text-muted-foreground">
-          Connect with peers for real-time learning sessions
+          Connect with coding mentors for real-time collaborative programming
         </p>
       </div>
 
 
 
       {/* Idle state */}
-      {callState === 'idle' && (
+      {codingState === 'idle' && (
         <Card>
           <CardHeader className="text-center">
-            <CardTitle>Ready to Learn?</CardTitle>
+            <CardTitle>Ready to Code?</CardTitle>
             <CardDescription>
-              We'll match you with someone who can teach the skills you want to learn
+              We'll match you with a coding mentor for real-time collaborative programming
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center space-y-4">
             <Button onClick={startLearningForm} size="lg" className="w-full">
-              Find a Learning Partner
+              <Code className="h-5 w-5 mr-2" />
+              Find a Coding Mentor
             </Button>
-
-            {/* Debug button for testing incoming calls */}
-            {/* {process.env.NODE_ENV === 'development' && (
-              <Button
-                onClick={() => {
-                  setIncomingCall({
-                    sessionId: 999,
-                    learnerName: 'Test User',
-                    skillName: 'React Development',
-                    learnerId: 'test-id'
-                  })
-                  setCallState('incoming')
-                }}
-                variant="outline"
-                size="sm"
-                className="w-full mt-2"
-              >
-                🧪 Test Incoming Call (Dev Only)
-              </Button>
-            )} */}
           </CardContent>
         </Card>
       )}
 
       {/* Learning form state */}
-      {callState === 'form' && (
+      {codingState === 'form' && (
         <Card>
           <CardHeader className="text-center">
-            <CardTitle>What do you want to learn?</CardTitle>
+            <CardTitle>What coding skill do you want to learn?</CardTitle>
             <CardDescription>
-              Enter a skill you'd like to learn and we'll find available teachers
+              Enter a programming skill and we'll find available coding mentors
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
               <input
                 type="text"
-                placeholder="e.g. React, Python, Guitar, Spanish..."
+                placeholder="e.g. React, Python, JavaScript, Node.js, TypeScript..."
                 value={skillToLearn}
                 onChange={(e) => setSkillToLearn(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                onKeyPress={(e) => e.key === 'Enter' && findPeersForSkill()}
+                onKeyDown={(e) => e.key === 'Enter' && findPeersForSkill()}
               />
             </div>
 
             {availableSkills.length > 0 && (
               <div>
-                <p className="text-sm text-muted-foreground mb-2">Popular skills:</p>
+                <p className="text-sm text-muted-foreground mb-2">Popular coding skills:</p>
                 <div className="flex flex-wrap gap-2">
                   {availableSkills.slice(0, 8).map((skill) => (
                     <button
@@ -437,12 +564,12 @@ export default function LivePage() {
             )}
 
             <div className="flex space-x-3 pt-4">
-              <Button onClick={() => setCallState('idle')} variant="outline" className="flex-1">
+              <Button onClick={() => setCodingState('idle')} variant="outline" className="flex-1">
                 Back
               </Button>
               <Button onClick={findPeersForSkill} className="flex-1">
                 <Search className="h-4 w-4 mr-2" />
-                Find Learning Partner
+                Find Coding Mentor
               </Button>
             </div>
           </CardContent>
@@ -450,12 +577,12 @@ export default function LivePage() {
       )}
 
       {/* Matched peers state */}
-      {callState === 'matched' && (
+      {codingState === 'matched' && (
         <Card>
           <CardHeader className="text-center">
-            <CardTitle>Available Teachers</CardTitle>
+            <CardTitle>Available Coding Mentors</CardTitle>
             <CardDescription>
-              Found {matchedPeers.length} teacher{matchedPeers.length !== 1 ? 's' : ''} for "{skillToLearn}"
+              Found {matchedPeers.length} coding mentor{matchedPeers.length !== 1 ? 's' : ''} for "{skillToLearn}"
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -472,7 +599,7 @@ export default function LivePage() {
                   <div>
                     <h3 className="font-semibold">{peer.name}</h3>
                     <p className="text-sm text-muted-foreground">
-                      Can teach: {peer.skill_name}
+                      Can mentor: {peer.skill_name}
                     </p>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -488,7 +615,7 @@ export default function LivePage() {
             ))}
 
             <div className="flex space-x-3 pt-4">
-              <Button onClick={() => setCallState('form')} variant="outline" className="flex-1">
+              <Button onClick={() => setCodingState('form')} variant="outline" className="flex-1">
                 Back
               </Button>
               <Button
@@ -496,8 +623,8 @@ export default function LivePage() {
                 disabled={!selectedPeer}
                 className="flex-1"
               >
-                <Users className="h-4 w-4 mr-2" />
-                Start Session
+                <Monitor className="h-4 w-4 mr-2" />
+                Start Coding Session
               </Button>
             </div>
           </CardContent>
@@ -505,47 +632,72 @@ export default function LivePage() {
       )}
 
       {/* Searching state */}
-      {callState === 'searching' && (
+      {codingState === 'searching' && (
         <Card>
           <CardContent className="text-center py-12">
             <div className="animate-pulse mb-4">
-              <div className="w-16 h-16 bg-primary rounded-full mx-auto mb-4"></div>
+              <Code className="w-16 h-16 text-primary mx-auto mb-4" />
             </div>
-            <h3 className="text-lg font-semibold mb-2">Searching for available teachers...</h3>
+            <h3 className="text-lg font-semibold mb-2">Searching for available coding mentors...</h3>
             <p className="text-muted-foreground">
-              This may take a moment while we find the perfect match
+              This may take a moment while we find the perfect coding mentor
             </p>
           </CardContent>
         </Card>
       )}
 
-      {/* Calling state */}
-      {callState === 'calling' && matchedPeer && (
+      {/* Connecting state */}
+      {codingState === 'connecting' && matchedPeer && (
         <Card className="border-blue-200 bg-blue-50">
           <CardContent className="text-center py-12">
             <div className="animate-pulse mb-4">
-              <PhoneIncoming className="w-16 h-16 text-blue-600 mx-auto mb-4" />
+              <Monitor className="w-16 h-16 text-blue-600 mx-auto mb-4" />
             </div>
             <h3 className="text-lg font-semibold mb-2 text-blue-800">
-              Calling {matchedPeer.name}...
+              Connecting to {matchedPeer.name}...
             </h3>
             <p className="text-blue-600 mb-4">
-              Requesting to learn: {matchedPeer.skill_name}
+              Requesting coding session for: {matchedPeer.skill_name}
             </p>
             <p className="text-sm text-blue-500 mb-6">
-              Waiting for them to accept your call
+              Waiting for them to accept your coding session
             </p>
 
             <Button
-              onClick={cancelCall}
+              onClick={cancelSession}
               variant="outline"
               className="border-red-300 text-red-600 hover:bg-red-50"
             >
-              <PhoneOff className="h-4 w-4 mr-2" />
-              Cancel Call
+              Cancel Session
             </Button>
           </CardContent>
         </Card>
+      )}
+
+      {/* Coding session state */}
+      {codingState === 'coding' && currentSession && matchedPeer && (
+        <div className="h-screen flex flex-col">
+          <Card className="border-green-200 bg-green-50 rounded-none">
+            <CardContent className="text-center py-3">
+              <h3 className="text-lg font-semibold text-green-800 mb-1">
+                Coding Session Active with {matchedPeer.name}
+              </h3>
+              <p className="text-green-600 text-sm">
+                Learning: {matchedPeer.skill_name}
+              </p>
+            </CardContent>
+          </Card>
+
+          <div className="flex-1">
+            <CollaborativeCoding
+              sessionId={currentSession.id}
+              mentorId={matchedPeer.id}
+              learnerId={user?.id || ''}
+              skillName={matchedPeer.skill_name}
+              onEndSession={endCodingSession}
+            />
+          </div>
+        </div>
       )}
 
 

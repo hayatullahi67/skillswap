@@ -17,15 +17,10 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
         path: "/api/socket",
         cors: { 
           origin: process.env.NODE_ENV === 'production' 
-            ? [
-                process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || 'https://skillswap-b6mp.vercel.app',
-                'https://skillswap-b6mp.vercel.app',
-                'https://*.vercel.app'
-              ]
+            ? true // Allow all origins in production for now
             : ["http://localhost:3000", "http://127.0.0.1:3000"],
-          methods: ["GET", "POST", "OPTIONS"],
-          credentials: false,
-          allowedHeaders: ["Content-Type", "Authorization"]
+          methods: ["GET", "POST"],
+          credentials: false
         },
         allowEIO3: true, // allow Engine.IO v3 clients
         transports: ["polling", "websocket"],

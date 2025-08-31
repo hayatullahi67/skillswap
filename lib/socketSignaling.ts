@@ -17,25 +17,14 @@ export class SocketSignaling {
     return new Promise((resolve, reject) => {
       console.log('🚀 Initializing Socket.IO signaling for peer:', this.myPeerId)
 
-      // Get the correct server URL for production vs development
-      const serverUrl = process.env.NODE_ENV === 'production'
-        ? process.env.NEXT_PUBLIC_APP_URL || window.location.origin
-        : undefined // Use default for localhost
-
-      console.log('🌐 Connecting to Socket.IO server:', serverUrl || 'localhost')
-
       // Connect to Socket.IO server
-      this.socket = io(serverUrl, {
+      this.socket = io({
         path: '/api/socket',
         transports: ['polling', 'websocket'],
         upgrade: true,
         rememberUpgrade: true,
-        timeout: 30000, // Increased timeout for Vercel
-        forceNew: true,
-        autoConnect: true,
-        reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000
+        timeout: 20000,
+        forceNew: true
       })
 
       this.socket.on('connect', () => {
@@ -53,13 +42,6 @@ export class SocketSignaling {
 
       this.socket.on('connect_error', (error) => {
         console.error('❌ Socket.IO connection error:', error)
-        console.error('❌ Error details:', {
-          message: error.message,
-          description: error.description,
-          context: error.context,
-          type: error.type
-        })
-        console.error('❌ Server URL attempted:', serverUrl || 'default')
         this.isConnected = false
         reject(error)
       })
@@ -75,7 +57,7 @@ export class SocketSignaling {
 
       // Handle incoming signals
       this.socket.on('signal', ({ from, data }) => {
-        console.log('� Recerived signal via Socket.IO:', { from, type: data.type || 'unknown' })
+        console.log('📡 Received signal via Socket.IO:', { from, type: data.type || 'unknown' })
 
         if (this.onSignalCallback) {
           this.onSignalCallback(from, data)
@@ -91,47 +73,12 @@ export class SocketSignaling {
         }
       })
 
-      // Set connection timeout with retry logic
+      // Set connection timeout
       setTimeout(() => {
         if (!this.isConnected) {
-          console.log('⏰ Socket.IO connection timeout, attempting fallback...')
-
-          // Try connecting without explicit URL as fallback
-          if (serverUrl) {
-            console.log('🔄 Retrying connection without explicit server URL...')
-            this.socket?.disconnect()
-
-            this.socket = io({
-              path: '/api/socket',
-              transports: ['polling', 'websocket'],
-              upgrade: true,
-              timeout: 15000,
-              forceNew: true
-            })
-
-            // Re-attach event listeners for fallback connection
-            this.socket.on('connect', () => {
-              console.log('✅ Socket.IO connected (fallback):', this.socket?.id)
-              this.isConnected = true
-              this.socket?.emit('register', this.myPeerId)
-            })
-
-            this.socket.on('registered', ({ peerId, socketId }) => {
-              console.log('✅ Peer registered successfully (fallback):', { peerId, socketId })
-              resolve()
-            })
-
-            // Final timeout for fallback
-            setTimeout(() => {
-              if (!this.isConnected) {
-                reject(new Error('Socket.IO connection failed after fallback attempt'))
-              }
-            }, 15000)
-          } else {
-            reject(new Error('Socket.IO connection timeout'))
-          }
+          reject(new Error('Socket.IO connection timeout'))
         }
-      }, 20000)
+      }, 10000)
     })
   }
 
@@ -171,8 +118,6 @@ export class SocketSignaling {
     })
   }
 
-
-
   // Set callback for incoming signals
   onSignal(callback: (from: string, data: any) => void): void {
     this.onSignalCallback = callback
@@ -199,7 +144,7 @@ export class SocketSignaling {
 
   // Disconnect
   disconnect(): void {
-    console.log('�  Disconnecting Socket.IO signaling')
+    console.log('🔌 Disconnecting Socket.IO signaling')
 
     if (this.socket) {
       this.socket.disconnect()

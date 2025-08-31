@@ -46,7 +46,8 @@ export default function SignupPage() {
         options: {
           data: {
             name: data.name
-          }
+          },
+          emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/auth/callback`
         }
       })
 

@@ -1,6 +1,4 @@
-// Zoom API Service for creating meetings and managing participants
-import jwt from 'jsonwebtoken'
-
+// Simplified Zoom API Service for creating meetings
 export interface ZoomMeeting {
   id: string
   join_url: string
@@ -8,12 +6,6 @@ export interface ZoomMeeting {
   host_id: string
   topic: string
   start_time: string
-}
-
-export interface ZoomJoinSignature {
-  signature: string
-  meetingNumber: string
-  role: number // 0 = participant, 1 = host
 }
 
 export class ZoomService {
@@ -137,47 +129,10 @@ export class ZoomService {
     }
   }
 
-  // Generate SDK signature for joining meeting
-  generateJoinSignature(meetingNumber: string, role: number = 0): ZoomJoinSignature {
-    try {
-      console.log('🔐 Generating Zoom join signature for meeting:', meetingNumber)
-
-      const sdkKey = process.env.NEXT_PUBLIC_ZOOM_SDK_KEY
-      const sdkSecret = process.env.ZOOM_SDK_SECRET
-
-      if (!sdkKey || !sdkSecret) {
-        throw new Error('Missing Zoom SDK credentials')
-      }
-
-      const iat = Math.round(new Date().getTime() / 1000) - 30
-      const exp = iat + 60 * 60 * 2 // 2 hours
-
-      const oHeader = { alg: 'HS256', typ: 'JWT' }
-      const oPayload = {
-        iss: sdkKey,
-        exp: exp,
-        iat: iat,
-        aud: 'zoom',
-        appKey: sdkKey,
-        tokenExp: exp,
-        alg: 'HS256'
-      }
-
-      const sHeader = JSON.stringify(oHeader)
-      const sPayload = JSON.stringify(oPayload)
-      const signature = jwt.sign(oPayload, sdkSecret, { header: oHeader })
-
-      console.log('✅ Zoom join signature generated')
-
-      return {
-        signature,
-        meetingNumber,
-        role
-      }
-    } catch (error) {
-      console.error('❌ Error generating Zoom signature:', error)
-      throw error
-    }
+  // Get meeting join URL (no SDK needed - users click link to join)
+  getMeetingJoinUrl(meetingId: string, password?: string): string {
+    const baseUrl = `https://zoom.us/j/${meetingId}`
+    return password ? `${baseUrl}?pwd=${password}` : baseUrl
   }
 
   // End a Zoom meeting

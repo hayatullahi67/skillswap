@@ -40,6 +40,8 @@ interface CollaborativeCodingProps {
     learnerId: string
     skillName: string
     onEndSession: () => void
+    zoomJoinUrl?: string
+    zoomMeetingId?: string
 }
 
 interface CodeChange {
@@ -84,7 +86,9 @@ export default function CollaborativeCoding({
     mentorId,
     learnerId,
     skillName,
-    onEndSession
+    onEndSession,
+    zoomJoinUrl,
+    zoomMeetingId
 }: CollaborativeCodingProps) {
     // Core state
     const [code, setCode] = useState('// Welcome to collaborative coding!\n// Start typing to begin your journey...\n\n')
@@ -1738,6 +1742,36 @@ export default function CollaborativeCoding({
                             <MessageCircle className="h-4 w-4 mx-auto mb-1" />
                             AI Chat
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Zoom Meeting Section */}
+            {zoomJoinUrl && (
+                <div className="bg-gradient-to-r from-green-50 to-blue-50 border-b border-green-200">
+                    <div className="px-3 sm:px-6 py-3">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                                <div className="flex items-center space-x-2">
+                                    <Video className="h-5 w-5 text-green-600" />
+                                    <span className="font-medium text-green-800">Video Call Ready</span>
+                                </div>
+                                <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300">
+                                    Zoom Meeting
+                                </Badge>
+                            </div>
+                            <Button
+                                onClick={() => window.open(zoomJoinUrl, '_blank')}
+                                className="bg-green-600 hover:bg-green-700 text-white"
+                                size="sm"
+                            >
+                                <Video className="h-4 w-4 mr-2" />
+                                Join Video Call
+                            </Button>
+                        </div>
+                        <p className="text-sm text-green-700 mt-2">
+                            Click "Join Video Call" to start video/audio communication with your coding partner
+                        </p>
                     </div>
                 </div>
             )}

@@ -399,13 +399,36 @@ export default function LivePage() {
     try {
       console.log('💻 Initiating coding session with:', selectedPeer.name)
 
-      // Step 1: Create session record in Supabase
+      // Step 1: Create Zoom meeting for video/audio
+      console.log('🎥 Creating Zoom meeting...')
+      const zoomResponse = await fetch('/api/zoom/create-meeting', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: `coding-${Date.now()}`,
+          hostUserId: selectedPeer.id,
+          topic: `SkillSwap Coding: ${selectedPeer.skill_name} with ${selectedPeer.name}`
+        })
+      })
+
+      let zoomMeeting = null
+      if (zoomResponse.ok) {
+        const zoomData = await zoomResponse.json()
+        zoomMeeting = zoomData.meeting
+        console.log('✅ Zoom meeting created:', zoomMeeting.join_url)
+      } else {
+        console.warn('⚠️ Zoom meeting creation failed, continuing without video')
+      }
+
+      // Step 2: Create session record in Supabase
       console.log('📝 Creating coding session with data:', {
         host_id: selectedPeer.id,
         learner_id: user?.id,
         skill_name: selectedPeer.skill_name,
         mode: 'coding',
-        status: 'pending'
+        status: 'pending',
+        zoom_meeting_id: zoomMeeting?.id,
+        zoom_join_url: zoomMeeting?.join_url
       })
 
       const { data: session, error } = await supabase
@@ -415,7 +438,9 @@ export default function LivePage() {
           learner_id: user?.id,            // Learner (requester)
           skill_name: selectedPeer.skill_name,
           mode: 'coding',
-          status: 'pending'
+          status: 'pending',
+          zoom_meeting_id: zoomMeeting?.id,
+          zoom_join_url: zoomMeeting?.join_url
         })
         .select()
         .single()
@@ -429,21 +454,8 @@ export default function LivePage() {
       console.log('✅ Coding session created successfully:', session)
       setCurrentSession(session)
 
-      // Verify the session was created by querying it back
-      const { data: verifySession, error: verifyError } = await supabase
-        .from('sessions')
-        .select('*')
-        .eq('id', session.id)
-        .single()
-
-      if (verifyError) {
-        console.error('❌ Error verifying session:', verifyError)
-      } else {
-        console.log('✅ Session verified in database:', verifySession)
-      }
-
       // Show connecting state
-      showInfo('Connecting...', `Requesting coding session with ${selectedPeer.name} for ${selectedPeer.skill_name}`)
+      showInfo('Connecting...', `Requesting coding session with ${selectedPeer.name} for ${selectedPeer.skill_name}${zoomMeeting ? ' (Video call ready!)' : ''}`)
 
     } catch (error) {
       console.error('Error starting session:', error)
@@ -711,6 +723,8 @@ export default function LivePage() {
               learnerId={currentSession.learner_id}
               skillName={matchedPeer.skill_name}
               onEndSession={endCodingSession}
+              zoomJoinUrl={currentSession.zoom_join_url}
+              zoomMeetingId={currentSession.zoom_meeting_id}
             />
           </div>
         </div>

@@ -67,6 +67,11 @@ export class ZoomService {
     this.tokenExpiry = Date.now() + (data.expires_in * 1000) - 60000 // Refresh 1 minute early
 
     console.log('✅ Zoom access token obtained')
+    
+    if (!this.accessToken) {
+      throw new Error('Failed to obtain access token from Zoom')
+    }
+    
     return this.accessToken
   }
 

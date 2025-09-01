@@ -324,11 +324,19 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         filter: `or(host_id.eq.${user.id},learner_id.eq.${user.id})`
       }, async (payload) => {
         console.log('📱 Global session update:', payload.new)
+        console.log('🔍 Session update debug:', {
+          sessionStatus: payload.new.status,
+          sessionHostId: payload.new.host_id,
+          sessionLearnerId: payload.new.learner_id,
+          currentUserId: user?.id,
+          isHost: payload.new.host_id === user?.id,
+          isLearner: payload.new.learner_id === user?.id
+        })
 
         const session = payload.new
 
-        if (session.status === 'accepted' && session.learner_id === user?.id) {
-          // I'm the learner and my call was accepted!
+        if (session.status === 'accepted' && session.host_id === user?.id) {
+          // I'm the host/caller and my call was accepted!
           console.log('✅ CALLER: My call was accepted!')
 
           // Handle different session modes for caller
@@ -340,16 +348,19 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
             showInfo('Call Accepted!', 'Video session started!')
           } else if (session.mode === 'coding') {
             // For coding sessions, redirect to live page
+            setCurrentSession(session)
+            setCallState('connected')
             showInfo('Coding Session Accepted!', 'Redirecting to collaborative coding session...')
             console.log('✅ CALLER: Coding session accepted - redirecting to live page')
             
             // Check if we're already on the live page
             const currentPath = typeof window !== 'undefined' ? window.location.pathname : ''
+            console.log('🔍 CALLER: Current path:', currentPath)
+            
             if (currentPath !== '/live') {
-              // Redirect to live page where collaborative coding interface will be rendered
-              setTimeout(() => {
-                router.push('/live?from=call-accepted')
-              }, 1000) // Small delay to show the success message
+              // Redirect to live page immediately
+              console.log('🔄 CALLER: Redirecting to live page...')
+              router.push('/live?from=call-accepted')
             } else {
               console.log('✅ CALLER: Already on live page, triggering session check...')
               // If already on live page, trigger a session check
@@ -468,6 +479,47 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       }
     }
   }, [user])
+
+  // Check for accepted sessions on mount (for caller who might have missed the update)
+  useEffect(() => {
+    if (!user?.id) return
+
+    const checkAcceptedSessions = async () => {
+      try {
+        const { data: acceptedSessions, error } = await supabase
+          .from('sessions')
+          .select('*')
+          .eq('host_id', user.id)
+          .eq('status', 'accepted')
+          .eq('mode', 'coding')
+
+        if (error) {
+          console.error('Error checking accepted sessions:', error)
+          return
+        }
+
+        if (acceptedSessions && acceptedSessions.length > 0) {
+          const session = acceptedSessions[0]
+          console.log('🔍 MOUNT CHECK: Found accepted session:', session)
+          
+          // Check if we're not on live page
+          const currentPath = typeof window !== 'undefined' ? window.location.pathname : ''
+          if (currentPath !== '/live') {
+            console.log('🔄 MOUNT CHECK: Redirecting to live page for accepted session...')
+            setCurrentSession(session)
+            setCallState('connected')
+            router.push('/live?from=accepted-session')
+          }
+        }
+      } catch (error) {
+        console.error('Error in checkAcceptedSessions:', error)
+      }
+    }
+
+    // Check after a short delay to ensure user is fully loaded
+    const timer = setTimeout(checkAcceptedSessions, 1000)
+    return () => clearTimeout(timer)
+  }, [user?.id, router])
 
   const acceptCall = async () => {
     if (!incomingCall) return

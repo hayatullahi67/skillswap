@@ -1,6 +1,6 @@
 // Simplified peer client with Socket.IO signaling
 import SimplePeer from 'simple-peer'
-import { SocketSignaling } from './socketSignaling'
+import { SupabaseSignaling } from './supabaseSignaling'
 
 export interface PeerConnection {
   id: string
@@ -12,7 +12,7 @@ export interface PeerConnection {
 export class SimplePeerClient {
   private connections: Map<string, PeerConnection> = new Map()
   private localStream: MediaStream | null = null
-  private signaling: SocketSignaling | null = null
+  private signaling: SupabaseSignaling | null = null
   private myPeerId: string
   private onIncomingCallCallback?: (peerId: string, remoteStream: MediaStream) => void
   private onIncomingOfferCallback?: (peerId: string, offer?: any) => void
@@ -29,8 +29,8 @@ export class SimplePeerClient {
     try {
       console.log('🚀 Initializing SimplePeerClient...')
       
-      // Initialize Socket.IO signaling with timeout
-      this.signaling = new SocketSignaling(this.myPeerId)
+      // Initialize Supabase signaling with timeout
+      this.signaling = new SupabaseSignaling(this.myPeerId)
       
       // Try to initialize with a timeout
       const initPromise = this.signaling.initialize()

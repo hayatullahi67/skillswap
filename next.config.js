@@ -1,13 +1,23 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    appDir: true,
-  },
-  async rewrites() {
+  async headers() {
     return [
       {
-        source: '/manifest.json',
-        destination: '/api/manifest',
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'Content-Security-Policy',
+            value: "default-src 'self' 'unsafe-inline' 'unsafe-eval' *.zoom.us *.zoomgov.com data: blob:; img-src 'self' data: blob: *.zoom.us *.zoomgov.com; media-src 'self' blob: *.zoom.us *.zoomgov.com;",
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'strict-origin-when-cross-origin',
+          },
+        ],
       },
     ]
   },

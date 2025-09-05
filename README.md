@@ -1,12 +1,11 @@
-# SkillSwap PWA
+# SkillMentor AI
 
 A Progressive Web App for peer-to-peer skill sharing with AI-powered learning assistance.
 
 ## Features
 
-- **Live SkillSwap**: Connect with peers for real-time video learning sessions
-- **AI Tutorial**: Personalized learning paths powered by Kiro AI
-- **Onboarding**: Guided learning journey for new users
+- **AI Tutorial**: Personalized learning paths powered by Gemini 1.5 Flash (via Kiro)
+- **Onboarding**: Users enter what skill they want to learn; Gemini generates a personalized learning path with recommended subtopics, interactive breakdowns, and smooth hand-off to the AI Tutorial system
 - **Resources**: Access to session summaries, quizzes, and learning materials
 - **PWA Support**: Install on mobile devices for native app experience
 
@@ -16,8 +15,7 @@ A Progressive Web App for peer-to-peer skill sharing with AI-powered learning as
 - **UI**: TailwindCSS + shadcn/ui + Material UI
 - **State Management**: Zustand
 - **Backend/Database**: Supabase (PostgreSQL, Auth, Realtime)
-- **AI**: OpenAI GPT-4
-- **Video Calls**: PeerJS (WebRTC)
+- **AI**: Gemini 1.5 Flash (via Kiro)
 - **Form Handling**: React Hook Form + Zod validation
 
 ## Getting Started
@@ -27,14 +25,14 @@ A Progressive Web App for peer-to-peer skill sharing with AI-powered learning as
 - Node.js 18+ 
 - npm or yarn
 - Supabase account
-- OpenAI API key
+
 
 ### Installation
 
 1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd skillswap-pwa
+cd SkillMentor AI
 ```
 
 2. Install dependencies:
@@ -47,7 +45,7 @@ npm install
 cp .env.example .env.local
 ```
 
-Fill in your Supabase and OpenAI API credentials in `.env.local`.
+Fill in your Supabase and Gemini API credentials in `.env.local`.
 
 4. Set up the database:
 
@@ -127,7 +125,7 @@ The app uses the following Supabase tables:
 1. Connect your repository to Vercel
 2. Set environment variables in Vercel dashboard
 3. Deploy automatically on push to main branch
-
+ you can also view the web ap from this deployed link skillswap-b6mp.vercel.app/
 ### Manual Deployment
 
 1. Build the application:

@@ -113,7 +113,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-primary mb-2">SkillSwap</h1>
+          <h1 className="text-4xl font-bold text-primary mb-2">SkillMentor AI</h1>
           <p className="text-muted-foreground">Learn and teach skills with peers</p>
         </div>
         
@@ -153,10 +153,10 @@ export default function LoginPage() {
             {error && (
               <div className="text-sm text-destructive text-center space-y-2">
                 <p>{error}</p>
-                <details className="text-xs">
+                {/* <details className="text-xs">
                   <summary>Debug Info</summary>
                   <p>Check browser console for detailed error logs</p>
-                </details>
+                </details> */}
               </div>
             )}
 

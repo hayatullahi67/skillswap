@@ -10,18 +10,14 @@ interface ZoomMeetingData {
 
 interface ZoomState {
   meeting: ZoomMeetingData | null
-  signature: string | null
   isLoading: boolean
-  isJoined: boolean
   error: string | null
 }
 
 export function useZoom() {
   const [state, setState] = useState<ZoomState>({
     meeting: null,
-    signature: null,
     isLoading: false,
-    isJoined: false,
     error: null
   })
 
@@ -70,49 +66,7 @@ export function useZoom() {
     }
   }, [])
 
-  // Generate join signature for a meeting
-  const generateJoinSignature = useCallback(async (meetingId: string, role: number = 0) => {
-    setState(prev => ({ ...prev, isLoading: true, error: null }))
 
-    try {
-      console.log('🔐 Generating join signature for meeting:', meetingId)
-
-      const response = await fetch('/api/zoom/join-signature', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          meetingNumber: meetingId,
-          role
-        })
-      })
-
-      const data = await response.json()
-
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to generate signature')
-      }
-
-      console.log('✅ Join signature generated')
-
-      setState(prev => ({
-        ...prev,
-        signature: data.signature,
-        isLoading: false
-      }))
-
-      return data.signature
-    } catch (error: any) {
-      console.error('❌ Error generating join signature:', error)
-      setState(prev => ({
-        ...prev,
-        isLoading: false,
-        error: error.message || 'Failed to generate signature'
-      }))
-      throw error
-    }
-  }, [])
 
   // End a Zoom meeting
   const endMeeting = useCallback(async (meetingId: string) => {
@@ -140,9 +94,7 @@ export function useZoom() {
 
       setState(prev => ({
         ...prev,
-        meeting: null,
-        signature: null,
-        isJoined: false
+        meeting: null
       }))
     } catch (error: any) {
       console.error('❌ Error ending Zoom meeting:', error)
@@ -150,33 +102,16 @@ export function useZoom() {
     }
   }, [])
 
-  // Create meeting and generate signature in one call
+  // Create meeting (simplified - just returns meeting data)
   const startZoomSession = useCallback(async (sessionId: string, hostUserId: string, userName: string, topic?: string) => {
     try {
-      // Step 1: Create meeting
       const meeting = await createMeeting(sessionId, hostUserId, topic)
-      
-      // Step 2: Generate signature
-      const signature = await generateJoinSignature(meeting.id, 0) // 0 = participant
-      
-      return {
-        meeting,
-        signature
-      }
+      return { meeting }
     } catch (error) {
       console.error('❌ Error starting Zoom session:', error)
       throw error
     }
-  }, [createMeeting, generateJoinSignature])
-
-  // Handle join/leave events
-  const handleJoin = useCallback(() => {
-    setState(prev => ({ ...prev, isJoined: true }))
-  }, [])
-
-  const handleLeave = useCallback(() => {
-    setState(prev => ({ ...prev, isJoined: false }))
-  }, [])
+  }, [createMeeting])
 
   const handleError = useCallback((error: string) => {
     setState(prev => ({ ...prev, error }))
@@ -190,18 +125,13 @@ export function useZoom() {
   return {
     // State
     meeting: state.meeting,
-    signature: state.signature,
     isLoading: state.isLoading,
-    isJoined: state.isJoined,
     error: state.error,
 
     // Actions
     createMeeting,
-    generateJoinSignature,
     endMeeting,
     startZoomSession,
-    handleJoin,
-    handleLeave,
     handleError,
     clearError
   }

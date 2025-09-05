@@ -7,7 +7,7 @@ import { LayoutWrapper } from '@/components/providers/LayoutWrapper'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'SkillSwap - Learn & Teach Skills',
+  title: 'SkillMentor AI - Learn & Teach Skills',
   description: 'Connect with peers to learn and teach skills through live sessions and AI-powered tutorials',
   manifest: '/manifest.json',
   themeColor: '#3b82f6',

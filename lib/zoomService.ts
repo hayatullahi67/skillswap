@@ -75,7 +75,7 @@ export class ZoomService {
       const accessToken = await this.getAccessToken()
 
       const meetingData = {
-        topic: topic || `SkillSwap Coding Session ${sessionId}`,
+        topic: topic || `SkillMentor AI Coding Session ${sessionId}`,
         type: 1, // Instant meeting
         duration: 60, // 60 minutes
         timezone: 'UTC',

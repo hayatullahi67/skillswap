@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { createNetworkAwareSupabaseCall } from './networkUtils'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -19,7 +20,24 @@ try {
   throw new Error(`Invalid NEXT_PUBLIC_SUPABASE_URL: ${supabaseUrl}. Must be a valid URL like https://your-project.supabase.co`)
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+    flowType: 'pkce'
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10
+    }
+  },
+  global: {
+    headers: {
+      'X-Client-Info': 'supabase-js-web'
+    }
+  }
+})
 
 export type Profile = {
   id: string
@@ -59,4 +77,39 @@ export type Availability = {
   user_id: string
   is_online: boolean
   last_seen: string
+}
+
+// Network-aware wrapper functions for common Supabase operations
+export const supabaseWithRetry = {
+  auth: {
+    signIn: (credentials: any) => 
+      createNetworkAwareSupabaseCall(() => supabase.auth.signInWithPassword(credentials))(),
+    signUp: (credentials: any) => 
+      createNetworkAwareSupabaseCall(() => supabase.auth.signUp(credentials))(),
+    signOut: () => 
+      createNetworkAwareSupabaseCall(() => supabase.auth.signOut())(),
+    getSession: () => 
+      createNetworkAwareSupabaseCall(() => supabase.auth.getSession())(),
+  },
+  from: (table: string) => ({
+    select: (query?: string) => 
+      createNetworkAwareSupabaseCall(async () => await supabase.from(table).select(query)),
+    insert: (data: any) => 
+      createNetworkAwareSupabaseCall(async () => await supabase.from(table).insert(data)),
+    update: (data: any) => 
+      createNetworkAwareSupabaseCall(async () => await supabase.from(table).update(data)),
+    delete: () => 
+      createNetworkAwareSupabaseCall(async () => await supabase.from(table).delete()),
+  })
+}
+
+// Connection health check
+export const checkSupabaseConnection = async (): Promise<boolean> => {
+  try {
+    const { data, error } = await supabase.from('profiles').select('count').limit(1)
+    return !error
+  } catch (error) {
+    console.error('Supabase connection check failed:', error)
+    return false
+  }
 }

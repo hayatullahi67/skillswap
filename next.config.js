@@ -41,7 +41,9 @@ const nextConfig = {
           },
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.zoom.us https://*.zoomgov.com https://*.supabase.co; connect-src 'self' https://*.supabase.co https://*.zoom.us https://*.zoomgov.com; img-src 'self' data: blob: https://*.zoom.us https://*.zoomgov.com; media-src 'self' blob: https://*.zoom.us https://*.zoomgov.com;",
+            value: process.env.NODE_ENV === 'development' 
+              ? "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https: wss: *; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: blob: *; worker-src 'self' blob: *; style-src 'self' 'unsafe-inline' https: *; connect-src 'self' https: wss: *; img-src 'self' data: blob: https: *; media-src 'self' blob: https: *; font-src 'self' data: https: *;"
+              : "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.supabase.co blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' data: blob:; media-src 'self' blob:;",
           },
           {
             key: 'Referrer-Policy',

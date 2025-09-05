@@ -2,7 +2,7 @@
 
 ## Overview
 
-The AI tutorial system now uses **real AI** powered by OpenAI GPT-4 to generate dynamic, personalized learning content for any skill.
+The AI tutorial system now uses **real AI** powered by Gemini 1.5 Pro to generate dynamic, personalized learning content for any skill.
 
 ## What Changed
 
@@ -13,7 +13,7 @@ The AI tutorial system now uses **real AI** powered by OpenAI GPT-4 to generate 
 - ❌ Static content that couldn't adapt to users
 
 ### After (Real AI)
-- ✅ Dynamic content generation using OpenAI GPT-4
+- ✅ Dynamic content generation using Gemini 1.5 Pro
 - ✅ Supports **any skill** a user wants to learn
 - ✅ Personalized based on user level (beginner/intermediate/advanced)
 - ✅ Real-time quiz and code example generation
@@ -21,18 +21,18 @@ The AI tutorial system now uses **real AI** powered by OpenAI GPT-4 to generate 
 
 ## Setup Instructions
 
-### 1. Get OpenAI API Key
-1. Go to [OpenAI Platform](https://platform.openai.com/)
+### 1. Get Gemini API Key
+1. Go to [Google AI Studio](https://aistudio.google.com/)
 2. Create an account or sign in
 3. Navigate to API Keys section
 4. Create a new API key
-5. Copy the key (starts with `sk-...`)
+5. Copy the key
 
 ### 2. Configure Environment Variables
 Add to your `.env.local` file:
 ```bash
-# OpenAI Configuration
-OPENAI_API_KEY=sk-your-openai-api-key-here
+# Gemini Configuration
+GEMINI_API_KEY=your-gemini-api-key-here
 
 # API Base URL (for local development)
 NEXT_PUBLIC_KIRO_API_URL=http://localhost:3000/api
@@ -40,7 +40,7 @@ NEXT_PUBLIC_KIRO_API_URL=http://localhost:3000/api
 
 ### 3. Install Dependencies
 ```bash
-npm install openai
+npm install gemini
 ```
 
 ### 4. Test the System
@@ -71,7 +71,7 @@ The system now includes three AI-powered endpoints:
 ## How It Works
 
 1. **User Input**: User enters any skill they want to learn
-2. **AI Generation**: System sends request to OpenAI GPT-4 with structured prompts
+2. **AI Generation**: System sends request to Gemini 1.5 Pro with structured prompts
 3. **Content Creation**: AI generates personalized tutorial with:
    - Step-by-step lessons
    - Code examples (when relevant)
@@ -96,7 +96,7 @@ The system now includes three AI-powered endpoints:
 
 ## Cost Considerations
 
-- OpenAI API calls cost money (typically $0.01-0.03 per tutorial)
+- Gemini API calls cost money (typically $0.01-0.03 per tutorial)
 - Consider implementing caching for popular skills
 - Monitor usage and set billing limits
 - Fallback system ensures functionality even without API access

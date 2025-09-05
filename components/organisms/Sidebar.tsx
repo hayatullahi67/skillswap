@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils'
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: Home },
-  { name: 'Live SkillSwap', href: '/live', icon: Video },
+  // { name: 'Live SkillMentor AI', href: '/live', icon: Video },
   { name: 'AI Tutorial', href: '/ai-tutorial', icon: BookOpen },
   { name: 'Onboarding', href: '/onboarding', icon: UserPlus },
   { name: 'Profile', href: '/profile', icon: User },
@@ -43,7 +43,7 @@ export function Sidebar() {
     <div className="flex flex-col h-full pt-[30px]">
       {/* Header */}
       <div className="p-6 border-b">
-        <h1 className="text-xl font-bold text-primary">SkillSwap</h1>
+        <h1 className="text-xl font-bold text-primary">SkillMentor AI</h1>
         {profile && (
           <p className="text-sm text-muted-foreground mt-1">
             Welcome, {profile.name}

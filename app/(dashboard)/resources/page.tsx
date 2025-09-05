@@ -169,12 +169,12 @@ export default function ResourcesPage() {
         </p>
 
         {/* Debug Info - Remove in production */}
-        {process.env.NODE_ENV === 'development' && (
+        {/* {process.env.NODE_ENV === 'development' && (
           <div className="mt-4 p-3 bg-gray-100 rounded-lg text-sm">
             <strong>Debug Info:</strong> Found {sessions.length} sessions,
             Total resources: {sessions.reduce((acc, s) => acc + (s.resources?.length || 0), 0)}
           </div>
-        )}
+        )} */}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

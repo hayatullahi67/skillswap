@@ -12,7 +12,7 @@
 2. **Create Project** (if you don't have one):
    - Click "New Project"
    - Choose organization
-   - Enter project name: "skillswap-app"
+   - Enter project name: "SkillMentor AI"
    - Choose region (closest to you)
    - Create project (takes ~2 minutes)
 

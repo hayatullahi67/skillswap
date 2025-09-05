@@ -8,7 +8,8 @@ import { SummaryModal } from '@/components/ui/modal'
 import { useAppStore } from '@/lib/store'
 import { supabase } from '@/lib/supabaseClient'
 import { formatDate, getInitials } from '@/lib/utils'
-import { Video, BookOpen, UserPlus, ToggleLeft, ToggleRight, FileText } from 'lucide-react'
+import { Video, BookOpen, UserPlus, ToggleLeft, ToggleRight, FileText, Bug } from 'lucide-react'
+import { logDiagnostics } from '@/lib/diagnostics'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -73,13 +74,7 @@ export default function DashboardPage() {
   }
 
   const quickActions = [
-    {
-      title: 'Live SkillSwap',
-      description: 'Connect with peers for real-time learning',
-      icon: Video,
-      href: '/live',
-      color: 'bg-blue-500'
-    },
+   
     {
       title: 'AI Tutorial',
       description: 'Learn with AI-powered personalized lessons',
@@ -109,8 +104,19 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* Profile Avatar */}
+        {/* Profile Avatar and Debug Tools */}
         <div className="flex items-center space-x-4">
+          {/* {process.env.NODE_ENV === 'development' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={logDiagnostics}
+              className="flex items-center gap-2"
+            >
+              <Bug className="w-4 h-4" />
+              Debug Connection
+            </Button>
+          )} */}
           <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center text-primary-foreground font-semibold">
             {profile ? getInitials(profile.name) : 'U'}
           </div>
@@ -118,7 +124,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Availability Toggle */}
-      <Card>
+      {/* <Card>
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -142,10 +148,10 @@ export default function DashboardPage() {
             </Button>
           </div>
         </CardContent>
-      </Card>
+      </Card> */}
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {quickActions.map((action) => (
           <Card
             key={action.title}

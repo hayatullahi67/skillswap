@@ -1,0 +1,28 @@
+{
+  "hooks": [
+    {
+      "name": "auto-generate modal",
+      "description": "Generated reusable AlertModal with confirm/cancel functionality"
+    },
+    {
+      "name": "supabase-auth-flow",
+      "description": "Kiro helped structure login/signup flow using Supabase Auth"
+    },
+    {
+      "name": "profile-management",
+      "description": "Automated user profile creation and editing forms"
+    },
+    {
+      "name": "resource-sharing",
+      "description": "Automated resource upload, listing, and discovery logic"
+    },
+    {
+      "name": "onboarding-tutorial",
+      "description": "Automated onboarding steps and tutorial progress tracking"
+    },
+    {
+      "name": "ai-coding-assistance",
+      "description": "Integrated AI-powered code suggestion and review modal"
+    }
+  ]
+}

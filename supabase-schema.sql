@@ -1,4 +1,4 @@
--- SkillSwap Database Schema
+-- SkillMentor AI Database Schema
 -- Run these commands in your Supabase SQL editor
 
 -- 1. Profiles Table
@@ -246,3 +246,52 @@ BEGIN
     END LOOP;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+-
+- 6. Storage Setup for Voice Notes
+-- Create storage bucket for voice notes
+insert into storage.buckets (id, name, public) values ('voice-notes', 'voice-notes', true);
+
+-- Set up storage policies for voice notes
+create policy "Users can upload voice notes" on storage.objects for insert with check (
+    bucket_id = 'voice-notes' and 
+    auth.uid()::text = (storage.foldername(name))[1]
+);
+
+create policy "Users can view voice notes in their sessions" on storage.objects for select using (
+    bucket_id = 'voice-notes'
+);
+
+create policy "Users can delete their own voice notes" on storage.objects for delete using (
+    bucket_id = 'voice-notes' and 
+    auth.uid()::text = (storage.foldername(name))[1]
+);
+
+-- 7. Chat Messages Table (for persistent chat history)
+create table chat_messages (
+    id bigserial primary key,
+    session_id bigint references sessions(id) on delete cascade,
+    sender_id uuid references profiles(id) on delete set null,
+    sender_name text not null,
+    content text not null,
+    message_type text check (message_type in ('message', 'voice_note', 'system')) default 'message',
+    voice_url text, -- URL to voice note in storage
+    created_at timestamp default now()
+);
+
+-- Enable RLS on chat messages
+alter table chat_messages enable row level security;
+
+-- Chat messages policies
+create policy "Users can view messages in their sessions" on chat_messages for select using (
+    session_id in (
+        select id from sessions 
+        where host_id = auth.uid() or learner_id = auth.uid()
+    )
+);
+
+create policy "Users can insert messages in their sessions" on chat_messages for insert with check (
+    session_id in (
+        select id from sessions 
+        where host_id = auth.uid() or learner_id = auth.uid()
+    ) and sender_id = auth.uid()
+);

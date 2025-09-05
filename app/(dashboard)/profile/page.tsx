@@ -246,7 +246,7 @@ export default function ProfilePage() {
       </Card>
 
       {/* Availability Toggle */}
-      <Card>
+      {/* <Card>
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -270,66 +270,11 @@ export default function ProfilePage() {
             </Button>
           </div>
         </CardContent>
-      </Card>
+      </Card> */}
 
       {/* Skills Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Skills I Can Teach */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <GraduationCap className="h-5 w-5 mr-2 text-green-600" />
-              Skills I Can Teach
-            </CardTitle>
-            <CardDescription>
-              Share your expertise with others
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {teachSkills.map((skill) => (
-              <div key={skill.id} className="flex items-center justify-between p-3 border rounded-lg">
-                <span className="font-medium">{skill.skill_name}</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeSkill(skill.id)}
-                  className="text-destructive hover:text-destructive"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
-            
-            {teachSkills.length === 0 && (
-              <p className="text-muted-foreground text-center py-4">
-                No teaching skills added yet
-              </p>
-            )}
-
-            <div className="flex space-x-2">
-              <Input
-                value={skillType === 'teach' ? newSkill : ''}
-                onChange={(e) => {
-                  setNewSkill(e.target.value)
-                  setSkillType('teach')
-                }}
-                placeholder="Add a skill you can teach"
-                onKeyPress={(e) => e.key === 'Enter' && skillType === 'teach' && addSkill()}
-              />
-              <Button
-                onClick={() => {
-                  setSkillType('teach')
-                  addSkill()
-                }}
-                disabled={!newSkill.trim() || skillType !== 'teach' || addingSkill}
-                size="sm"
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
+      <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
+       
         {/* Skills I Want to Learn */}
         <Card>
           <CardHeader>
@@ -388,7 +333,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Stats */}
-      <Card>
+      {/* <Card>
         <CardHeader>
           <CardTitle>Profile Stats</CardTitle>
         </CardHeader>
@@ -410,7 +355,7 @@ export default function ProfilePage() {
             </div>
           </div>
         </CardContent>
-      </Card>
+      </Card> */}
 
       {/* Modal */}
       <AlertModal

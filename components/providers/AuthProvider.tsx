@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, ReactNode } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { supabase } from '@/lib/supabaseClient'
+import { supabase, supabaseWithRetry } from '@/lib/supabaseClient'
 import { useAppStore } from '@/lib/store'
 
 const AuthContext = createContext({})
@@ -19,8 +19,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         setLoading(true)
 
-        // Get initial session
-        const { data: { session } } = await supabase.auth.getSession()
+        // Get initial session with retry logic
+        const { data: { session } } = await supabaseWithRetry.auth.getSession()
 
         if (mounted) {
           if (session?.user) {

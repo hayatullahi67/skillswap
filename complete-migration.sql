@@ -1,4 +1,4 @@
--- Complete Migration Script for SkillSwap Live Sessions
+-- Complete Migration Script for SkillMentor AI Live Sessions
 -- Run this in your Supabase SQL Editor
 
 -- Step 1: Check current sessions table structure

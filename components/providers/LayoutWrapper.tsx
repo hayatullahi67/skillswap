@@ -3,7 +3,8 @@
 import { usePathname } from 'next/navigation'
 import { Sidebar } from '@/components/organisms/Sidebar'
 import { AuthGuard } from '@/components/providers/AuthGuard'
-import { CallProvider } from '@/components/providers/CallProvider'
+// import { CallProvider } from '@/components/providers/CallProvider'
+import NetworkStatus from '@/components/NetworkStatus'
 
 export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -15,6 +16,7 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   if (isAuthPage) {
     return (
       <div className="min-h-screen bg-background">
+        <NetworkStatus />
         <AuthGuard>
           {children}
         </AuthGuard>
@@ -24,13 +26,14 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen bg-background">
+      <NetworkStatus />
       <AuthGuard>
-        <CallProvider>
+        {/* <CallProvider> */}
           <Sidebar />
           <main className="flex-1 overflow-auto">
             {children}
           </main>
-        </CallProvider>
+        {/* </CallProvider> */}
       </AuthGuard>
     </div>
   )

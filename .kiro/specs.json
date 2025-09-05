@@ -1,0 +1,10 @@
+{
+  "project": "SkillMentor AI",
+  "features": [
+    "User onboarding flow with AI tutorials",
+    "User profile management",
+    "Resource sharing and discovery",
+    "AI-powered coding assistance"
+  ],
+  "kiro_usage": "Kiro was used to generate React components, modal logic, and supabase integration"
+}
